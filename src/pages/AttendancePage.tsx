@@ -292,7 +292,7 @@ const AttendancePage = () => {
   }
 
   return (
-    <div className="min-h-svh bg-muted/30 pb-8">
+    <div className="min-h-svh bg-muted/30 pb-8" translate="no">
       {/* Top Bar */}
       <div className="bg-primary text-primary-foreground px-4 py-3 flex items-center gap-3">
         <div className="w-10 h-10 rounded-lg bg-primary-foreground/20 flex items-center justify-center shrink-0">
