@@ -74,8 +74,8 @@ export async function exportToExcel(event: EventData, attendees: Attendee[]) {
     { width: 16 }, { width: sigColWidth }, { width: 14 },
   ];
 
-  const headerFill: ExcelJS.Fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF2563EB' } };
-  const headerFont: Partial<ExcelJS.Font> = { bold: true, color: { argb: 'FFFFFFFF' }, size: 10 };
+  const headerFill: ExcelJS.Fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE5E7EB' } };
+  const headerFont: Partial<ExcelJS.Font> = { bold: true, color: { argb: 'FF1F2937' }, size: 10 };
   const borderThin: Partial<ExcelJS.Borders> = {
     top: { style: 'thin' }, bottom: { style: 'thin' },
     left: { style: 'thin' }, right: { style: 'thin' },
@@ -223,7 +223,7 @@ export async function exportToPDF(event: EventData, attendees: Attendee[]) {
     head: [['번호', '소속', '직책/직급', '이름', '연락처', '서명', '등록시각']],
     body: bodyData,
     styles: { font: 'NotoSansKR', fontSize: 9, cellPadding: 3, valign: 'middle', halign: 'center', minCellHeight: 14 },
-    headStyles: { fillColor: [37, 99, 235], textColor: 255, fontStyle: 'normal', minCellHeight: 10 },
+    headStyles: { fillColor: [229, 231, 235], textColor: [31, 41, 55], fontStyle: 'normal', minCellHeight: 10 },
     columnStyles: {
       0: { cellWidth: 12 }, 1: { cellWidth: 34 }, 2: { cellWidth: 18 },
       3: { cellWidth: 22 }, 4: { cellWidth: 28 }, 5: { cellWidth: 32 }, 6: { cellWidth: 24 },
@@ -278,8 +278,8 @@ export async function exportAllAttendeesToExcel(attendees: AllAttendeeRow[]) {
     { width: 12 }, { width: 10 }, { width: 16 }, { width: 16 },
   ];
 
-  const headerFill: ExcelJS.Fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF2563EB' } };
-  const headerFont: Partial<ExcelJS.Font> = { bold: true, color: { argb: 'FFFFFFFF' }, size: 10 };
+  const headerFill: ExcelJS.Fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE5E7EB' } };
+  const headerFont: Partial<ExcelJS.Font> = { bold: true, color: { argb: 'FF1F2937' }, size: 10 };
   const borderThin: Partial<ExcelJS.Borders> = {
     top: { style: 'thin' }, bottom: { style: 'thin' },
     left: { style: 'thin' }, right: { style: 'thin' },
@@ -368,7 +368,7 @@ export async function exportAllAttendeesToPDF(attendees: AllAttendeeRow[]) {
     head: [['번호', '행사', '날짜', '소속', '성명', '직급', '연락처', '등록시간']],
     body: bodyData,
     styles: { font: 'NotoSansKR', fontSize: 9, cellPadding: 3, valign: 'middle', halign: 'center' },
-    headStyles: { fillColor: [37, 99, 235], textColor: 255, fontStyle: 'normal' },
+    headStyles: { fillColor: [229, 231, 235], textColor: [31, 41, 55], fontStyle: 'normal' },
     columnStyles: {
       0: { cellWidth: 12 }, 1: { cellWidth: 50 }, 2: { cellWidth: 26 }, 3: { cellWidth: 40 },
       4: { cellWidth: 24 }, 5: { cellWidth: 20 }, 6: { cellWidth: 30 }, 7: { cellWidth: 30 },
