@@ -353,7 +353,7 @@ const AttendancePage = () => {
             </div>
 
             <div className="space-y-1.5">
-              <label htmlFor="position" className="text-sm font-semibold text-foreground">직급</label>
+              <label htmlFor="position" className="text-sm font-semibold text-foreground">직책/직급</label>
               <Input
                 id="position"
                 value={form.position}
