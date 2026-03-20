@@ -1,10 +1,10 @@
-import { useState, useEffect, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { useParams, useSearchParams } from 'react-router-dom';
 import SignatureCanvas from 'react-signature-canvas';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { CheckCircle2, Calendar, MapPin, Clock, Loader2 } from 'lucide-react';
+import { CheckCircle2, Calendar, MapPin, Clock, Loader2, Building2, RotateCcw, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface EventData {
@@ -19,15 +19,28 @@ interface EventData {
   status: string | null;
 }
 
+const formatPhone = (value: string) => {
+  const digits = value.replace(/\D/g, '').slice(0, 11);
+  if (digits.length <= 3) return digits;
+  if (digits.length <= 7) return `${digits.slice(0, 3)}-${digits.slice(3)}`;
+  return `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7)}`;
+};
+
 const AttendancePage = () => {
   const { accessCode } = useParams<{ accessCode: string }>();
-  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const codeFromQuery = searchParams.get('code');
+  const code = accessCode || codeFromQuery || '';
+
   const sigCanvas = useRef<SignatureCanvas>(null);
+  const sigContainerRef = useRef<HTMLDivElement>(null);
 
   const [event, setEvent] = useState<EventData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [notFound, setNotFound] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [alreadyRegistered, setAlreadyRegistered] = useState(false);
   const [form, setForm] = useState({
     organization: '',
     name: '',
@@ -35,30 +48,63 @@ const AttendancePage = () => {
     phone: '',
   });
 
+  // Resize signature canvas to match container
+  const resizeCanvas = useCallback(() => {
+    if (sigCanvas.current && sigContainerRef.current) {
+      const container = sigContainerRef.current;
+      const canvas = sigCanvas.current.getCanvas();
+      const ratio = window.devicePixelRatio || 1;
+      canvas.width = container.offsetWidth * ratio;
+      canvas.height = 200 * ratio;
+      canvas.style.width = `${container.offsetWidth}px`;
+      canvas.style.height = '200px';
+      canvas.getContext('2d')?.scale(ratio, ratio);
+      sigCanvas.current.clear();
+    }
+  }, []);
+
   useEffect(() => {
     const fetchEvent = async () => {
+      if (!code) {
+        setNotFound(true);
+        setLoading(false);
+        return;
+      }
+
       const { data, error } = await supabase
         .from('events')
         .select('*')
-        .eq('access_code', accessCode ?? '')
+        .eq('access_code', code)
         .single();
 
       if (error || !data) {
-        toast.error('유효하지 않은 접속코드입니다.');
-        navigate('/');
+        setNotFound(true);
+        setLoading(false);
         return;
       }
       setEvent(data);
       setLoading(false);
     };
     fetchEvent();
-  }, [accessCode, navigate]);
+  }, [code]);
+
+  useEffect(() => {
+    if (!loading && event) {
+      setTimeout(resizeCanvas, 100);
+    }
+    window.addEventListener('resize', resizeCanvas);
+    return () => window.removeEventListener('resize', resizeCanvas);
+  }, [loading, event, resizeCanvas]);
+
+  const handlePhoneChange = (value: string) => {
+    setForm({ ...form, phone: formatPhone(value) });
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!event) return;
 
-    if (!form.organization || !form.name || !form.phone) {
+    if (!form.organization.trim() || !form.name.trim() || !form.phone.trim()) {
       toast.error('필수 정보를 모두 입력해주세요.');
       return;
     }
@@ -71,10 +117,40 @@ const AttendancePage = () => {
     setSubmitting(true);
 
     try {
+      // Check duplicate registration
+      const phoneDigits = form.phone.replace(/\D/g, '');
+      const { data: existing } = await supabase
+        .from('attendees')
+        .select('id')
+        .eq('event_id', event.id)
+        .eq('phone', form.phone)
+        .maybeSingle();
+
+      if (!existing) {
+        // Also check without hyphens
+        const { data: existing2 } = await supabase
+          .from('attendees')
+          .select('id')
+          .eq('event_id', event.id)
+          .eq('phone', phoneDigits)
+          .maybeSingle();
+        if (existing2) {
+          setAlreadyRegistered(true);
+          setSubmitting(false);
+          return;
+        }
+      }
+
+      if (existing) {
+        setAlreadyRegistered(true);
+        setSubmitting(false);
+        return;
+      }
+
       // Upload signature
       const dataUrl = sigCanvas.current.toDataURL('image/png');
       const blob = await (await fetch(dataUrl)).blob();
-      const fileName = `${event.id}/${Date.now()}_${form.name}.png`;
+      const fileName = `${event.id}/${Date.now()}_${form.name.trim()}.png`;
 
       const { error: uploadError } = await supabase.storage
         .from('signatures')
@@ -89,9 +165,9 @@ const AttendancePage = () => {
       // Insert attendee
       const { error: insertError } = await supabase.from('attendees').insert({
         event_id: event.id,
-        organization: form.organization,
-        name: form.name,
-        position: form.position || null,
+        organization: form.organization.trim(),
+        name: form.name.trim(),
+        position: form.position.trim() || null,
         phone: form.phone,
         signature_url: urlData.publicUrl,
       });
@@ -115,6 +191,40 @@ const AttendancePage = () => {
     );
   }
 
+  if (notFound) {
+    return (
+      <div className="min-h-svh bg-background flex items-center justify-center p-4">
+        <div className="text-center space-y-4">
+          <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-destructive/10">
+            <AlertCircle className="w-10 h-10 text-destructive" />
+          </div>
+          <h2 className="text-xl font-bold text-foreground">행사 정보를 찾을 수 없습니다</h2>
+          <p className="text-muted-foreground text-sm leading-relaxed">
+            접속코드를 다시 확인해주세요.<br />
+            문제가 계속되면 행사 담당자에게 문의하세요.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (alreadyRegistered) {
+    return (
+      <div className="min-h-svh bg-background flex items-center justify-center p-4">
+        <div className="text-center space-y-4">
+          <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-amber-500/10">
+            <AlertCircle className="w-10 h-10 text-amber-500" />
+          </div>
+          <h2 className="text-xl font-bold text-foreground">이미 등록되었습니다</h2>
+          <p className="text-muted-foreground text-sm leading-relaxed">
+            동일한 연락처로 이미 참석 등록이 완료되었습니다.<br />
+            문의사항은 행사 담당자에게 연락해주세요.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   if (success) {
     return (
       <div className="min-h-svh bg-background flex items-center justify-center p-4">
@@ -122,7 +232,7 @@ const AttendancePage = () => {
           <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-success/10 animate-check-bounce">
             <CheckCircle2 className="w-10 h-10 text-success" />
           </div>
-          <h2 className="text-xl font-bold text-foreground">참석 등록 완료</h2>
+          <h2 className="text-xl font-bold text-foreground">참석 등록이 완료되었습니다 ✓</h2>
           <p className="text-muted-foreground text-sm leading-relaxed">
             참석 등록이 정상적으로 완료되었습니다.<br />
             즐거운 교육 되시기 바랍니다.
@@ -133,113 +243,148 @@ const AttendancePage = () => {
   }
 
   return (
-    <div className="min-h-svh bg-background p-4 md:p-8 flex flex-col items-center">
-      <div className="w-full max-w-md">
-        <div className="bg-card rounded-2xl shadow-card overflow-hidden">
-          {/* Event Header */}
-          <header className="p-6 border-b border-border/50">
-            <h1 className="text-xl font-bold text-foreground tracking-tight">
+    <div className="min-h-svh bg-muted/30 pb-8">
+      {/* Logo placeholder */}
+      <div className="bg-primary text-primary-foreground px-4 py-3 flex items-center gap-3">
+        <div className="w-10 h-10 rounded-lg bg-primary-foreground/20 flex items-center justify-center shrink-0">
+          <Building2 className="w-6 h-6" />
+        </div>
+        <span className="text-sm font-medium opacity-90">행사 참석 확인 시스템</span>
+      </div>
+
+      <div className="px-4 pt-5 max-w-lg mx-auto">
+        {/* Event Info Header */}
+        <div className="bg-card rounded-2xl shadow-card overflow-hidden mb-5">
+          <div className="p-5">
+            <h1 className="text-lg font-bold text-foreground leading-snug">
               {event?.title}
             </h1>
             {event?.description && (
-              <p className="text-sm text-muted-foreground mt-1">{event.description}</p>
+              <p className="text-sm text-muted-foreground mt-1.5">{event.description}</p>
             )}
-            <div className="flex flex-wrap gap-3 mt-3 text-xs text-muted-foreground">
-              <span className="inline-flex items-center gap-1">
-                <Calendar className="w-3.5 h-3.5" />
-                {event?.event_date}
-              </span>
-              <span className="inline-flex items-center gap-1">
-                <Clock className="w-3.5 h-3.5" />
-                {event?.start_time?.slice(0, 5)} ~ {event?.end_time?.slice(0, 5)}
-              </span>
-              <span className="inline-flex items-center gap-1">
-                <MapPin className="w-3.5 h-3.5" />
-                {event?.location}
-              </span>
+            <div className="mt-4 space-y-2">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Calendar className="w-4 h-4 text-primary shrink-0" />
+                <span>{event?.event_date}</span>
+              </div>
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Clock className="w-4 h-4 text-primary shrink-0" />
+                <span>{event?.start_time?.slice(0, 5)} ~ {event?.end_time?.slice(0, 5)}</span>
+              </div>
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <MapPin className="w-4 h-4 text-primary shrink-0" />
+                <span>{event?.location}</span>
+              </div>
             </div>
-          </header>
+          </div>
+        </div>
 
-          {/* Form */}
-          <form onSubmit={handleSubmit} className="p-6 space-y-5">
-            <p className="text-sm text-muted-foreground">
-              참석 확인을 위해 정보를 입력해주세요.
+        {/* Registration Form */}
+        <form onSubmit={handleSubmit} className="space-y-5">
+          <div className="bg-card rounded-2xl shadow-card p-5 space-y-5">
+            <p className="text-sm font-medium text-foreground">
+              참석 확인을 위해 아래 정보를 입력해주세요.
             </p>
 
-            <div className="space-y-1.5">
-              <label className="text-sm font-medium text-foreground">소속 기관 *</label>
+            <div className="space-y-2">
+              <label className="text-sm font-semibold text-foreground">
+                소속 <span className="text-destructive">*</span>
+              </label>
               <Input
                 value={form.organization}
                 onChange={(e) => setForm({ ...form, organization: e.target.value })}
-                placeholder="예: OO시청 정보통신과"
-                className="bg-secondary/50"
+                placeholder="예: 경기도청 AI프런티어정책과"
+                className="h-12 text-base bg-secondary/50 border-border/60"
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium text-foreground">성함 *</label>
-                <Input
-                  value={form.name}
-                  onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  className="bg-secondary/50"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium text-foreground">직급</label>
-                <Input
-                  value={form.position}
-                  onChange={(e) => setForm({ ...form, position: e.target.value })}
-                  className="bg-secondary/50"
-                />
-              </div>
+            <div className="space-y-2">
+              <label className="text-sm font-semibold text-foreground">
+                직급
+              </label>
+              <Input
+                value={form.position}
+                onChange={(e) => setForm({ ...form, position: e.target.value })}
+                placeholder="예: 주무관"
+                className="h-12 text-base bg-secondary/50 border-border/60"
+              />
             </div>
 
-            <div className="space-y-1.5">
-              <label className="text-sm font-medium text-foreground">연락처 *</label>
+            <div className="space-y-2">
+              <label className="text-sm font-semibold text-foreground">
+                이름 <span className="text-destructive">*</span>
+              </label>
+              <Input
+                value={form.name}
+                onChange={(e) => setForm({ ...form, name: e.target.value })}
+                placeholder="이름을 입력해주세요"
+                className="h-12 text-base bg-secondary/50 border-border/60"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-semibold text-foreground">
+                연락처 <span className="text-destructive">*</span>
+              </label>
               <Input
                 type="tel"
                 value={form.phone}
-                onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                onChange={(e) => handlePhoneChange(e.target.value)}
                 placeholder="010-0000-0000"
-                className="bg-secondary/50"
+                className="h-12 text-base bg-secondary/50 border-border/60"
               />
             </div>
+          </div>
 
-            <div className="space-y-1.5">
-              <label className="text-sm font-medium text-foreground">참석자 서명 *</label>
-              <div className="border-2 border-dashed border-border rounded-lg bg-secondary/30 overflow-hidden">
-                <SignatureCanvas
-                  ref={sigCanvas}
-                  canvasProps={{
-                    className: 'w-full h-40 cursor-crosshair',
-                    style: { width: '100%', height: '160px' },
-                  }}
-                  backgroundColor="transparent"
-                />
-              </div>
+          {/* Signature Section */}
+          <div className="bg-card rounded-2xl shadow-card p-5 space-y-3">
+            <div className="flex items-center justify-between">
+              <label className="text-sm font-semibold text-foreground">
+                서명 <span className="text-destructive">*</span>
+              </label>
               <button
                 type="button"
                 onClick={() => sigCanvas.current?.clear()}
-                className="text-xs text-muted-foreground underline hover:text-foreground transition-colors"
+                className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
               >
-                서명 지우기
+                <RotateCcw className="w-3 h-3" />
+                다시 쓰기
               </button>
             </div>
-
-            <Button
-              type="submit"
-              className="w-full h-12 text-base font-semibold"
-              disabled={submitting}
+            <div
+              ref={sigContainerRef}
+              className="border-2 border-dashed border-border rounded-xl bg-white overflow-hidden relative"
             >
-              {submitting ? (
+              <SignatureCanvas
+                ref={sigCanvas}
+                canvasProps={{
+                  className: 'w-full cursor-crosshair touch-none',
+                  style: { width: '100%', height: '200px' },
+                }}
+                backgroundColor="rgba(255,255,255,0)"
+              />
+              <span className="absolute inset-0 flex items-center justify-center text-sm text-muted-foreground/40 pointer-events-none select-none">
+                서명해주세요
+              </span>
+            </div>
+          </div>
+
+          {/* Submit Button */}
+          <Button
+            type="submit"
+            className="w-full h-14 text-base font-bold rounded-xl shadow-lg"
+            disabled={submitting}
+          >
+            {submitting ? (
+              <>
                 <Loader2 className="w-5 h-5 animate-spin" />
-              ) : (
-                '참석 등록 완료'
-              )}
-            </Button>
-          </form>
-        </div>
+                등록 중...
+              </>
+            ) : (
+              '참석 등록'
+            )}
+          </Button>
+        </form>
       </div>
     </div>
   );
