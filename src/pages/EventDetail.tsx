@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { ArrowLeft, Printer, Users, Calendar, MapPin, Clock, Hash, Loader2, Trash2 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { toast } from 'sonner';
+import { getPublicOrigin } from '@/lib/getPublicUrl';
 
 interface Attendee {
   id: string;
