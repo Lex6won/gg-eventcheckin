@@ -17,6 +17,7 @@ interface EventData {
   location: string;
   organizer: string;
   status: string | null;
+  poster_url: string | null;
 }
 
 const formatPhone = (value: string) => {
