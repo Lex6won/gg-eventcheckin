@@ -13,6 +13,7 @@ import AdminEventDetail from "./pages/AdminEventDetail";
 import AdminEventAttendees from "./pages/AdminEventAttendees";
 import AdminAttendees from "./pages/AdminAttendees";
 import AdminSettings from "./pages/AdminSettings";
+import AdminEventQR from "./pages/AdminEventQR";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -35,6 +36,7 @@ const App = () => (
               <Route path="events" element={<AdminEvents />} />
               <Route path="events/:eventId" element={<AdminEventDetail />} />
               <Route path="events/:eventId/attendees" element={<AdminEventAttendees />} />
+              <Route path="events/:eventId/qr" element={<AdminEventQR />} />
               <Route path="attendees" element={<AdminAttendees />} />
               <Route path="settings" element={<AdminSettings />} />
             </Route>
