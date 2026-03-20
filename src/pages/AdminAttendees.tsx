@@ -1,8 +1,11 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/lib/auth';
 import { supabase } from '@/integrations/supabase/client';
-import { Loader2, Users, Search } from 'lucide-react';
+import { Loader2, Users, Search, FileSpreadsheet, FileText } from 'lucide-react';
 import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { toast } from 'sonner';
+import { exportAllAttendeesToExcel, exportAllAttendeesToPDF } from '@/lib/exportAttendees';
 
 interface AttendeeRow {
   id: string;
@@ -20,6 +23,8 @@ const AdminAttendees = () => {
   const [attendees, setAttendees] = useState<AttendeeRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [exportingExcel, setExportingExcel] = useState(false);
+  const [exportingPdf, setExportingPdf] = useState(false);
 
   useEffect(() => {
     const fetch = async () => {
@@ -51,6 +56,30 @@ const AdminAttendees = () => {
       )
     : attendees;
 
+  const handleExportExcel = async () => {
+    setExportingExcel(true);
+    try {
+      await exportAllAttendeesToExcel(filtered);
+      toast.success('엑셀 파일이 다운로드되었습니다.');
+    } catch {
+      toast.error('엑셀 다운로드에 실패했습니다.');
+    } finally {
+      setExportingExcel(false);
+    }
+  };
+
+  const handleExportPdf = async () => {
+    setExportingPdf(true);
+    try {
+      await exportAllAttendeesToPDF(filtered);
+      toast.success('PDF 파일이 다운로드되었습니다.');
+    } catch {
+      toast.error('PDF 다운로드에 실패했습니다.');
+    } finally {
+      setExportingPdf(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -64,6 +93,25 @@ const AdminAttendees = () => {
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold text-foreground">참석자 현황</h1>
         <span className="text-sm text-muted-foreground tabular-nums">총 {attendees.length}명</span>
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        <Button
+          onClick={handleExportExcel}
+          disabled={exportingExcel || filtered.length === 0}
+          className="bg-emerald-600 hover:bg-emerald-700 text-white"
+        >
+          {exportingExcel ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <FileSpreadsheet className="w-4 h-4 mr-1" />}
+          엑셀 다운로드
+        </Button>
+        <Button
+          onClick={handleExportPdf}
+          disabled={exportingPdf || filtered.length === 0}
+          className="bg-red-600 hover:bg-red-700 text-white"
+        >
+          {exportingPdf ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <FileText className="w-4 h-4 mr-1" />}
+          PDF 다운로드
+        </Button>
       </div>
 
       <div className="relative">
