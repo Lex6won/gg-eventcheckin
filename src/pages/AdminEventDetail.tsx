@@ -200,6 +200,9 @@ const AdminEventDetail = () => {
 
             {/* Action buttons */}
             <div className="flex flex-wrap gap-2 pt-2">
+              <Button size="sm" onClick={() => navigate(`/admin/events/${eventId}/attendees`)}>
+                <Users className="w-4 h-4 mr-1" /> 참석자 목록 ({attendees.length})
+              </Button>
               <Button size="sm" variant="outline" onClick={handleCopyLink}>
                 <Copy className="w-4 h-4 mr-1" /> 링크 복사
               </Button>
