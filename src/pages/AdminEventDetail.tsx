@@ -203,8 +203,14 @@ const AdminEventDetail = () => {
               <Button size="sm" variant="outline" onClick={handleCopyLink}>
                 <Copy className="w-4 h-4 mr-1" /> 링크 복사
               </Button>
+              <Button size="sm" variant="outline" onClick={() => navigate(`/admin/events/${eventId}/qr`)}>
+                <Maximize2 className="w-4 h-4 mr-1" /> QR 전체화면
+              </Button>
               <Button size="sm" variant="outline" onClick={handleDownloadQR}>
-                <Download className="w-4 h-4 mr-1" /> QR 다운로드
+                <Download className="w-4 h-4 mr-1" /> QR 이미지
+              </Button>
+              <Button size="sm" variant="outline" onClick={handleDownloadPoster}>
+                <FileImage className="w-4 h-4 mr-1" /> QR 포스터(PDF)
               </Button>
               <Button size="sm" variant="outline" onClick={openEdit}>
                 <Pencil className="w-4 h-4 mr-1" /> 수정
@@ -212,16 +218,14 @@ const AdminEventDetail = () => {
               <Button size="sm" variant="outline" onClick={handleDelete} className="text-destructive hover:text-destructive">
                 <Trash2 className="w-4 h-4 mr-1" /> 삭제
               </Button>
-              <Button size="sm" variant="outline" onClick={() => window.print()}>
-                <Printer className="w-4 h-4 mr-1" /> 인쇄
-              </Button>
             </div>
           </div>
 
           {/* QR Code */}
-          <div ref={qrRef} className="flex-shrink-0 bg-secondary/50 rounded-xl p-4 text-center space-y-2">
-            <QRCodeSVG value={attendUrl} size={140} level="M" />
+          <div ref={qrRef} className="flex-shrink-0 bg-secondary/50 rounded-xl p-4 text-center space-y-3">
+            <QRCodeSVG value={attendUrl} size={160} level="H" />
             <p className="text-xs text-muted-foreground">QR코드로 참석 등록</p>
+            <p className="text-[10px] text-muted-foreground/70 font-mono">{event?.access_code}</p>
           </div>
         </div>
       </div>
