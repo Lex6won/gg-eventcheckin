@@ -16,6 +16,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import { toast } from 'sonner';
 import { downloadQRPoster, downloadQRImage } from '@/lib/qrExport';
 import { exportToExcel, exportToPDF } from '@/lib/exportAttendees';
+import { getPublicOrigin } from '@/lib/getPublicUrl';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend,
