@@ -34,6 +34,7 @@ const App = () => (
               <Route path="dashboard" element={<Navigate to="/admin/events" replace />} />
               <Route path="events" element={<AdminEvents />} />
               <Route path="events/:eventId" element={<AdminEventDetail />} />
+              <Route path="events/:eventId/attendees" element={<AdminEventAttendees />} />
               <Route path="attendees" element={<AdminAttendees />} />
               <Route path="settings" element={<AdminSettings />} />
             </Route>
