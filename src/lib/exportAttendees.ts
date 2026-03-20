@@ -368,7 +368,7 @@ export async function exportAllAttendeesToPDF(attendees: AllAttendeeRow[]) {
     head: [['번호', '행사', '날짜', '소속', '성명', '직급', '연락처', '등록시간']],
     body: bodyData,
     styles: { font: 'NotoSansKR', fontSize: 9, cellPadding: 3, valign: 'middle', halign: 'center' },
-    headStyles: { fillColor: [37, 99, 235], textColor: 255, fontStyle: 'normal' },
+    headStyles: { fillColor: [229, 231, 235], textColor: [31, 41, 55], fontStyle: 'normal' },
     columnStyles: {
       0: { cellWidth: 12 }, 1: { cellWidth: 50 }, 2: { cellWidth: 26 }, 3: { cellWidth: 40 },
       4: { cellWidth: 24 }, 5: { cellWidth: 20 }, 6: { cellWidth: 30 }, 7: { cellWidth: 30 },
