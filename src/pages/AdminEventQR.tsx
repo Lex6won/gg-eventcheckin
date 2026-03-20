@@ -46,7 +46,7 @@ const AdminEventQR = () => {
     if (user) fetchEvent();
   }, [user, fetchEvent]);
 
-  const attendUrl = `${window.location.origin}/attend/${event?.access_code}`;
+  const attendUrl = `${getPublicOrigin()}/attend/${event?.access_code}`;
 
   if (loading || authLoading) {
     return (

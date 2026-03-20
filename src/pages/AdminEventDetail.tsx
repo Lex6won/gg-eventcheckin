@@ -100,7 +100,7 @@ const AdminEventDetail = () => {
     if (user) fetchData();
   }, [user, fetchData]);
 
-  const attendUrl = `${window.location.origin}/attend/${event?.access_code}`;
+  const attendUrl = `${getPublicOrigin()}/attend/${event?.access_code}`;
 
   const handleCopyLink = () => {
     navigator.clipboard.writeText(attendUrl);
