@@ -144,8 +144,8 @@ export async function exportToExcel(event: EventData, attendees: Attendee[]) {
         if (buf) {
           const imgId = wb.addImage({ buffer: buf, extension: 'png' });
           ws.addImage(imgId, {
-            tl: { col: 5.1, row: rowNum - 0.9 },
-            br: { col: 5.9, row: rowNum - 0.1 },
+            tl: { col: 5.1, row: rowNum - 0.9 } as any,
+            br: { col: 5.9, row: rowNum - 0.1 } as any,
           });
         }
       } catch { /* skip */ }
