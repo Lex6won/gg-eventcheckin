@@ -50,6 +50,34 @@ const AdminEventAttendees = () => {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [signaturePreview, setSignaturePreview] = useState<string | null>(null);
+  const [exportingExcel, setExportingExcel] = useState(false);
+  const [exportingPdf, setExportingPdf] = useState(false);
+
+  const handleExportExcel = async () => {
+    if (!event) return;
+    setExportingExcel(true);
+    try {
+      await exportToExcel(event, attendees);
+      toast.success('엑셀 파일이 다운로드되었습니다.');
+    } catch (e) {
+      toast.error('엑셀 다운로드에 실패했습니다.');
+    } finally {
+      setExportingExcel(false);
+    }
+  };
+
+  const handleExportPdf = async () => {
+    if (!event) return;
+    setExportingPdf(true);
+    try {
+      await exportToPDF(event, attendees);
+      toast.success('PDF 파일이 다운로드되었습니다.');
+    } catch (e) {
+      toast.error('PDF 다운로드에 실패했습니다.');
+    } finally {
+      setExportingPdf(false);
+    }
+  };
 
   const fetchData = useCallback(async () => {
     const [eventRes, attendeesRes] = await Promise.all([
