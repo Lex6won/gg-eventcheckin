@@ -22,6 +22,17 @@ interface EventData {
   organizer: string;
 }
 
+interface AllAttendeeRow {
+  id: string;
+  organization: string;
+  position: string | null;
+  name: string;
+  phone: string;
+  checked_in_at: string | null;
+  event_title: string;
+  event_date: string;
+}
+
 const formatTime = (t: string) => t?.slice(0, 5) || '';
 const formatCheckedIn = (d: string | null) =>
   d ? new Date(d).toLocaleString('ko-KR', { hour: '2-digit', minute: '2-digit' }) : '-';
@@ -50,21 +61,15 @@ async function fetchImageAsBuffer(url: string): Promise<ArrayBuffer | null> {
   }
 }
 
-// ─── Excel Export ───────────────────────────────────────────────
+// ─── Excel Export (Single Event) ───────────────────────────────
 
 export async function exportToExcel(event: EventData, attendees: Attendee[]) {
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet('참석확인부');
 
-  // Column widths
   ws.columns = [
-    { width: 6 },   // 번호
-    { width: 22 },  // 소속
-    { width: 10 },  // 직급
-    { width: 12 },  // 이름
-    { width: 16 },  // 연락처
-    { width: 18 },  // 서명
-    { width: 14 },  // 등록시각
+    { width: 6 }, { width: 22 }, { width: 10 }, { width: 12 },
+    { width: 16 }, { width: 18 }, { width: 14 },
   ];
 
   const headerFill: ExcelJS.Fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF2563EB' } };
@@ -74,7 +79,6 @@ export async function exportToExcel(event: EventData, attendees: Attendee[]) {
     left: { style: 'thin' }, right: { style: 'thin' },
   };
 
-  // Row 1: Title
   ws.mergeCells('A1:G1');
   const titleCell = ws.getCell('A1');
   titleCell.value = '참석확인부';
@@ -82,7 +86,6 @@ export async function exportToExcel(event: EventData, attendees: Attendee[]) {
   titleCell.alignment = { horizontal: 'center', vertical: 'middle' };
   ws.getRow(1).height = 36;
 
-  // Rows 2-5: Event info
   const infoRows = [
     ['행사명', event.title],
     ['일  시', `${event.event_date}  ${formatTime(event.start_time)} ~ ${formatTime(event.end_time)}`],
@@ -98,8 +101,6 @@ export async function exportToExcel(event: EventData, attendees: Attendee[]) {
     row.getCell(2).font = { size: 10 };
   });
 
-  // Row 6: blank
-  // Row 7: Table header
   const headers = ['번호', '소속', '직급', '이름', '연락처', '서명', '등록시각'];
   const headerRow = ws.getRow(7);
   headers.forEach((h, i) => {
@@ -112,23 +113,13 @@ export async function exportToExcel(event: EventData, attendees: Attendee[]) {
   });
   headerRow.height = 24;
 
-  // Data rows (with signature images)
   for (let idx = 0; idx < attendees.length; idx++) {
     const a = attendees[idx];
     const rowNum = idx + 8;
     const row = ws.getRow(rowNum);
     row.height = 40;
 
-    const vals = [
-      idx + 1,
-      a.organization,
-      a.position || '-',
-      a.name,
-      a.phone,
-      '', // signature placeholder
-      formatCheckedIn(a.checked_in_at),
-    ];
-
+    const vals = [idx + 1, a.organization, a.position || '-', a.name, a.phone, '', formatCheckedIn(a.checked_in_at)];
     vals.forEach((v, ci) => {
       const cell = row.getCell(ci + 1);
       cell.value = v;
@@ -137,7 +128,6 @@ export async function exportToExcel(event: EventData, attendees: Attendee[]) {
       cell.font = { size: 10 };
     });
 
-    // Signature image
     if (a.signature_url) {
       try {
         const buf = await fetchImageAsBuffer(a.signature_url);
@@ -157,7 +147,7 @@ export async function exportToExcel(event: EventData, attendees: Attendee[]) {
   saveAs(new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), fileName);
 }
 
-// ─── PDF Export ─────────────────────────────────────────────────
+// ─── PDF Export (Single Event) ─────────────────────────────────
 
 let fontLoadedPromise: Promise<ArrayBuffer> | null = null;
 
@@ -180,24 +170,19 @@ export async function exportToPDF(event: EventData, attendees: Attendee[]) {
   );
 
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-
-  // Register Korean font
   doc.addFileToVFS('NotoSansKR-Regular.ttf', fontBase64);
   doc.addFont('NotoSansKR-Regular.ttf', 'NotoSansKR', 'normal');
   doc.setFont('NotoSansKR');
 
-  // Prefetch signature images
   const sigImages: (string | null)[] = await Promise.all(
     attendees.map((a) => (a.signature_url ? fetchImageAsBase64(a.signature_url) : Promise.resolve(null)))
   );
 
   const pageWidth = doc.internal.pageSize.getWidth();
 
-  // Header function for each page
   const drawHeader = () => {
     doc.setFontSize(20);
     doc.text('참석확인부', pageWidth / 2, 20, { align: 'center' });
-
     doc.setFontSize(10);
     const info = [
       `행사명: ${event.title}`,
@@ -213,70 +198,34 @@ export async function exportToPDF(event: EventData, attendees: Attendee[]) {
   drawHeader();
 
   const bodyData = attendees.map((a, i) => [
-    String(i + 1),
-    a.organization,
-    a.position || '-',
-    a.name,
-    a.phone,
-    '', // signature placeholder
-    formatCheckedIn(a.checked_in_at),
+    String(i + 1), a.organization, a.position || '-', a.name, a.phone, '', formatCheckedIn(a.checked_in_at),
   ]);
 
   autoTable(doc, {
     startY: 56,
     head: [['번호', '소속', '직급', '이름', '연락처', '서명', '등록시각']],
     body: bodyData,
-    styles: {
-      font: 'NotoSansKR',
-      fontSize: 9,
-      cellPadding: 3,
-      valign: 'middle',
-      halign: 'center',
-    },
-    headStyles: {
-      fillColor: [37, 99, 235],
-      textColor: 255,
-      fontStyle: 'bold',
-    },
+    styles: { font: 'NotoSansKR', fontSize: 9, cellPadding: 3, valign: 'middle', halign: 'center' },
+    headStyles: { fillColor: [37, 99, 235], textColor: 255, fontStyle: 'bold' },
     columnStyles: {
-      0: { cellWidth: 12 },
-      1: { cellWidth: 36 },
-      2: { cellWidth: 18 },
-      3: { cellWidth: 22 },
-      4: { cellWidth: 28 },
-      5: { cellWidth: 30 },
-      6: { cellWidth: 24 },
+      0: { cellWidth: 12 }, 1: { cellWidth: 36 }, 2: { cellWidth: 18 },
+      3: { cellWidth: 22 }, 4: { cellWidth: 28 }, 5: { cellWidth: 30 }, 6: { cellWidth: 24 },
     },
     didDrawCell: (data) => {
       if (data.section === 'body' && data.column.index === 5) {
         const sig = sigImages[data.row.index];
         if (sig) {
           try {
-            doc.addImage(
-              sig,
-              'PNG',
-              data.cell.x + 2,
-              data.cell.y + 1,
-              data.cell.width - 4,
-              data.cell.height - 2
-            );
+            doc.addImage(sig, 'PNG', data.cell.x + 2, data.cell.y + 1, data.cell.width - 4, data.cell.height - 2);
           } catch { /* skip */ }
         }
       }
     },
     didDrawPage: (data) => {
-      // Page number footer
       const pageCount = doc.getNumberOfPages();
       doc.setFontSize(8);
       doc.setFont('NotoSansKR');
-      doc.text(
-        `${data.pageNumber} / ${pageCount}`,
-        pageWidth / 2,
-        doc.internal.pageSize.getHeight() - 10,
-        { align: 'center' }
-      );
-
-      // Redraw header on subsequent pages
+      doc.text(`${data.pageNumber} / ${pageCount}`, pageWidth / 2, doc.internal.pageSize.getHeight() - 10, { align: 'center' });
       if (data.pageNumber > 1) {
         doc.setFont('NotoSansKR');
         drawHeader();
@@ -285,23 +234,145 @@ export async function exportToPDF(event: EventData, attendees: Attendee[]) {
     margin: { top: 56, bottom: 20 },
   });
 
-  // Fix page numbers (total count)
   const totalPages = doc.getNumberOfPages();
   for (let i = 1; i <= totalPages; i++) {
     doc.setPage(i);
     doc.setFontSize(8);
     doc.setFont('NotoSansKR');
-    // Clear footer area and rewrite
     doc.setFillColor(255, 255, 255);
     doc.rect(0, doc.internal.pageSize.getHeight() - 15, pageWidth, 15, 'F');
-    doc.text(
-      `${i} / ${totalPages}`,
-      pageWidth / 2,
-      doc.internal.pageSize.getHeight() - 10,
-      { align: 'center' }
-    );
+    doc.text(`${i} / ${totalPages}`, pageWidth / 2, doc.internal.pageSize.getHeight() - 10, { align: 'center' });
   }
 
   const fileName = `참석확인부_${event.title}_${event.event_date}.pdf`;
   doc.save(fileName);
+}
+
+// ─── Excel Export (All Attendees) ──────────────────────────────
+
+export async function exportAllAttendeesToExcel(attendees: AllAttendeeRow[]) {
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet('참석자 현황');
+
+  ws.columns = [
+    { width: 6 }, { width: 22 }, { width: 14 }, { width: 22 },
+    { width: 12 }, { width: 10 }, { width: 16 }, { width: 16 },
+  ];
+
+  const headerFill: ExcelJS.Fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF2563EB' } };
+  const headerFont: Partial<ExcelJS.Font> = { bold: true, color: { argb: 'FFFFFFFF' }, size: 10 };
+  const borderThin: Partial<ExcelJS.Borders> = {
+    top: { style: 'thin' }, bottom: { style: 'thin' },
+    left: { style: 'thin' }, right: { style: 'thin' },
+  };
+
+  ws.mergeCells('A1:H1');
+  const titleCell = ws.getCell('A1');
+  titleCell.value = '참석자 현황';
+  titleCell.font = { bold: true, size: 18 };
+  titleCell.alignment = { horizontal: 'center', vertical: 'middle' };
+  ws.getRow(1).height = 36;
+
+  ws.mergeCells('A2:H2');
+  ws.getCell('A2').value = `총 ${attendees.length}명`;
+  ws.getCell('A2').font = { size: 10 };
+  ws.getCell('A2').alignment = { horizontal: 'right' };
+
+  const headers = ['번호', '행사', '날짜', '소속', '성명', '직급', '연락처', '등록시간'];
+  const headerRow = ws.getRow(4);
+  headers.forEach((h, i) => {
+    const cell = headerRow.getCell(i + 1);
+    cell.value = h;
+    cell.fill = headerFill;
+    cell.font = headerFont;
+    cell.alignment = { horizontal: 'center', vertical: 'middle' };
+    cell.border = borderThin;
+  });
+  headerRow.height = 24;
+
+  attendees.forEach((a, idx) => {
+    const row = ws.getRow(idx + 5);
+    const vals = [
+      idx + 1, a.event_title, a.event_date, a.organization,
+      a.name, a.position || '-', a.phone,
+      a.checked_in_at
+        ? new Date(a.checked_in_at).toLocaleString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+        : '-',
+    ];
+    vals.forEach((v, ci) => {
+      const cell = row.getCell(ci + 1);
+      cell.value = v;
+      cell.alignment = { horizontal: 'center', vertical: 'middle' };
+      cell.border = borderThin;
+      cell.font = { size: 10 };
+    });
+  });
+
+  const buffer = await wb.xlsx.writeBuffer();
+  const today = new Date().toISOString().slice(0, 10);
+  saveAs(new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), `참석자현황_${today}.xlsx`);
+}
+
+// ─── PDF Export (All Attendees) ────────────────────────────────
+
+export async function exportAllAttendeesToPDF(attendees: AllAttendeeRow[]) {
+  const fontBuffer = await loadNotoSansKR();
+  const fontBase64 = btoa(
+    new Uint8Array(fontBuffer).reduce((s, b) => s + String.fromCharCode(b), '')
+  );
+
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+  doc.addFileToVFS('NotoSansKR-Regular.ttf', fontBase64);
+  doc.addFont('NotoSansKR-Regular.ttf', 'NotoSansKR', 'normal');
+  doc.setFont('NotoSansKR');
+
+  const pageWidth = doc.internal.pageSize.getWidth();
+
+  const drawHeader = () => {
+    doc.setFontSize(20);
+    doc.text('참석자 현황', pageWidth / 2, 18, { align: 'center' });
+    doc.setFontSize(10);
+    doc.text(`총 ${attendees.length}명`, pageWidth - 20, 18, { align: 'right' });
+  };
+
+  drawHeader();
+
+  const bodyData = attendees.map((a, i) => [
+    String(i + 1), a.event_title, a.event_date, a.organization, a.name, a.position || '-', a.phone,
+    a.checked_in_at
+      ? new Date(a.checked_in_at).toLocaleString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+      : '-',
+  ]);
+
+  autoTable(doc, {
+    startY: 26,
+    head: [['번호', '행사', '날짜', '소속', '성명', '직급', '연락처', '등록시간']],
+    body: bodyData,
+    styles: { font: 'NotoSansKR', fontSize: 9, cellPadding: 3, valign: 'middle', halign: 'center' },
+    headStyles: { fillColor: [37, 99, 235], textColor: 255, fontStyle: 'bold' },
+    columnStyles: {
+      0: { cellWidth: 12 }, 1: { cellWidth: 50 }, 2: { cellWidth: 26 }, 3: { cellWidth: 40 },
+      4: { cellWidth: 24 }, 5: { cellWidth: 20 }, 6: { cellWidth: 30 }, 7: { cellWidth: 30 },
+    },
+    didDrawPage: (data) => {
+      if (data.pageNumber > 1) {
+        doc.setFont('NotoSansKR');
+        drawHeader();
+      }
+    },
+    margin: { top: 26, bottom: 20 },
+  });
+
+  const totalPages = doc.getNumberOfPages();
+  for (let i = 1; i <= totalPages; i++) {
+    doc.setPage(i);
+    doc.setFontSize(8);
+    doc.setFont('NotoSansKR');
+    doc.setFillColor(255, 255, 255);
+    doc.rect(0, doc.internal.pageSize.getHeight() - 15, pageWidth, 15, 'F');
+    doc.text(`${i} / ${totalPages}`, pageWidth / 2, doc.internal.pageSize.getHeight() - 10, { align: 'center' });
+  }
+
+  const today = new Date().toISOString().slice(0, 10);
+  doc.save(`참석자현황_${today}.pdf`);
 }

@@ -10,11 +10,12 @@ import {
 import {
   ArrowLeft, Users, Calendar, MapPin, Clock, Hash,
   Loader2, Trash2, Copy, Download, Pencil, Maximize2, FileImage,
-  BarChart3, ImagePlus, X,
+  BarChart3, ImagePlus, X, FileSpreadsheet, FileText,
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { toast } from 'sonner';
 import { downloadQRPoster, downloadQRImage } from '@/lib/qrExport';
+import { exportToExcel, exportToPDF } from '@/lib/exportAttendees';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend,
@@ -355,11 +356,41 @@ const AdminEventDetail = () => {
 
       {/* Attendees Table */}
       <div className="bg-card rounded-xl shadow-sm border border-border/50 overflow-hidden">
-        <div className="p-5 border-b border-border/50 flex items-center justify-between">
+        <div className="p-5 border-b border-border/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <h2 className="font-bold text-foreground flex items-center gap-2">
             <Users className="w-5 h-5 text-primary" /> 참석자 명부
+            <span className="tabular-nums text-sm text-muted-foreground font-medium ml-1">총 {attendees.length}명</span>
           </h2>
-          <span className="tabular-nums text-sm text-muted-foreground font-medium">총 {attendees.length}명</span>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={attendees.length === 0}
+              onClick={async () => {
+                if (!event) return;
+                try {
+                  await exportToExcel(event, attendees);
+                  toast.success('엑셀 파일이 다운로드되었습니다.');
+                } catch { toast.error('엑셀 다운로드에 실패했습니다.'); }
+              }}
+            >
+              <FileSpreadsheet className="w-4 h-4 mr-1" /> 엑셀
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={attendees.length === 0}
+              onClick={async () => {
+                if (!event) return;
+                try {
+                  await exportToPDF(event, attendees);
+                  toast.success('PDF 파일이 다운로드되었습니다.');
+                } catch { toast.error('PDF 다운로드에 실패했습니다.'); }
+              }}
+            >
+              <FileText className="w-4 h-4 mr-1" /> PDF
+            </Button>
+          </div>
         </div>
 
         {attendees.length === 0 ? (
