@@ -67,9 +67,11 @@ export async function exportToExcel(event: EventData, attendees: Attendee[]) {
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet('참석확인부');
 
+  // Column widths: 1 Excel width unit ≈ 7.5 pixels
+  const sigColWidth = 30;
   ws.columns = [
     { width: 6 }, { width: 22 }, { width: 10 }, { width: 12 },
-    { width: 16 }, { width: 28 }, { width: 14 },
+    { width: 16 }, { width: sigColWidth }, { width: 14 },
   ];
 
   const headerFill: ExcelJS.Fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF2563EB' } };
