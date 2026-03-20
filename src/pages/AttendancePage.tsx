@@ -296,7 +296,7 @@ const AttendancePage = () => {
           </div>
           <span className="text-sm font-medium opacity-90">행사 참석 확인 시스템</span>
         </div>
-        <img src={gyeonggiLogo} alt="경기도" className="h-10 w-auto object-contain brightness-0 invert" />
+        
       </div>
 
       <div className="px-4 pt-5 max-w-lg mx-auto">
