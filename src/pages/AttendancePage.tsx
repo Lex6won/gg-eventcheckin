@@ -4,7 +4,7 @@ import SignatureCanvas from 'react-signature-canvas';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { CheckCircle2, Calendar, MapPin, Clock, Loader2, Building2, RotateCcw, AlertCircle } from 'lucide-react';
+import { CheckCircle2, Calendar, MapPin, Clock, Loader2, Building2, RotateCcw, AlertCircle, XCircle } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface EventData {
@@ -38,9 +38,11 @@ const AttendancePage = () => {
   const [event, setEvent] = useState<EventData | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
+  const [expired, setExpired] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
   const [alreadyRegistered, setAlreadyRegistered] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
   const [form, setForm] = useState({
     organization: '',
     name: '',
@@ -48,7 +50,6 @@ const AttendancePage = () => {
     phone: '',
   });
 
-  // Resize signature canvas to match container
   const resizeCanvas = useCallback(() => {
     if (sigCanvas.current && sigContainerRef.current) {
       const container = sigContainerRef.current;
@@ -82,6 +83,15 @@ const AttendancePage = () => {
         setLoading(false);
         return;
       }
+
+      // Check if event is completed
+      if (data.status === '완료') {
+        setEvent(data);
+        setExpired(true);
+        setLoading(false);
+        return;
+      }
+
       setEvent(data);
       setLoading(false);
     };
@@ -89,36 +99,52 @@ const AttendancePage = () => {
   }, [code]);
 
   useEffect(() => {
-    if (!loading && event) {
+    if (!loading && event && !expired) {
       setTimeout(resizeCanvas, 100);
     }
     window.addEventListener('resize', resizeCanvas);
     return () => window.removeEventListener('resize', resizeCanvas);
-  }, [loading, event, resizeCanvas]);
+  }, [loading, event, expired, resizeCanvas]);
 
   const handlePhoneChange = (value: string) => {
     setForm({ ...form, phone: formatPhone(value) });
+    if (errors.phone) setErrors({ ...errors, phone: '' });
+  };
+
+  const updateField = (key: string, value: string) => {
+    setForm({ ...form, [key]: value });
+    if (errors[key]) setErrors({ ...errors, [key]: '' });
+  };
+
+  const validate = (): boolean => {
+    const newErrors: Record<string, string> = {};
+    if (!form.organization.trim()) newErrors.organization = '소속을 입력해주세요.';
+    if (!form.name.trim()) newErrors.name = '이름을 입력해주세요.';
+    if (!form.phone.trim()) {
+      newErrors.phone = '연락처를 입력해주세요.';
+    } else if (form.phone.replace(/\D/g, '').length < 10) {
+      newErrors.phone = '올바른 연락처를 입력해주세요.';
+    }
+    if (!sigCanvas.current || sigCanvas.current.isEmpty()) {
+      newErrors.signature = '서명을 해주세요.';
+    }
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!event) return;
 
-    if (!form.organization.trim() || !form.name.trim() || !form.phone.trim()) {
-      toast.error('필수 정보를 모두 입력해주세요.');
-      return;
-    }
-
-    if (!sigCanvas.current || sigCanvas.current.isEmpty()) {
-      toast.error('서명을 입력해주세요.');
+    if (!validate()) {
+      toast.error('필수 항목을 확인해주세요.');
       return;
     }
 
     setSubmitting(true);
 
     try {
-      // Check duplicate registration
-      const phoneDigits = form.phone.replace(/\D/g, '');
+      // Check duplicate
       const { data: existing } = await supabase
         .from('attendees')
         .select('id')
@@ -127,7 +153,7 @@ const AttendancePage = () => {
         .maybeSingle();
 
       if (!existing) {
-        // Also check without hyphens
+        const phoneDigits = form.phone.replace(/\D/g, '');
         const { data: existing2 } = await supabase
           .from('attendees')
           .select('id')
@@ -148,7 +174,7 @@ const AttendancePage = () => {
       }
 
       // Upload signature
-      const dataUrl = sigCanvas.current.toDataURL('image/png');
+      const dataUrl = sigCanvas.current!.toDataURL('image/png');
       const blob = await (await fetch(dataUrl)).blob();
       const fileName = `${event.id}/${Date.now()}_${form.name.trim()}.png`;
 
@@ -162,7 +188,6 @@ const AttendancePage = () => {
         .from('signatures')
         .getPublicUrl(fileName);
 
-      // Insert attendee
       const { error: insertError } = await supabase.from('attendees').insert({
         event_id: event.id,
         organization: form.organization.trim(),
@@ -177,7 +202,7 @@ const AttendancePage = () => {
       setSuccess(true);
     } catch (err) {
       console.error(err);
-      toast.error('참석 등록 중 오류가 발생했습니다.');
+      toast.error('참석 등록 중 오류가 발생했습니다. 다시 시도해주세요.');
     } finally {
       setSubmitting(false);
     }
@@ -194,9 +219,9 @@ const AttendancePage = () => {
   if (notFound) {
     return (
       <div className="min-h-svh bg-background flex items-center justify-center p-4">
-        <div className="text-center space-y-4">
+        <div className="text-center space-y-4 animate-fade-in">
           <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-destructive/10">
-            <AlertCircle className="w-10 h-10 text-destructive" />
+            <XCircle className="w-10 h-10 text-destructive" />
           </div>
           <h2 className="text-xl font-bold text-foreground">행사 정보를 찾을 수 없습니다</h2>
           <p className="text-muted-foreground text-sm leading-relaxed">
@@ -208,12 +233,35 @@ const AttendancePage = () => {
     );
   }
 
+  if (expired) {
+    return (
+      <div className="min-h-svh bg-background flex items-center justify-center p-4">
+        <div className="text-center space-y-4 animate-fade-in">
+          <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-warning/10">
+            <AlertCircle className="w-10 h-10 text-warning" />
+          </div>
+          <h2 className="text-xl font-bold text-foreground">참석 등록이 마감되었습니다</h2>
+          <p className="text-muted-foreground text-sm leading-relaxed">
+            이 행사의 참석 등록 기간이 종료되었습니다.<br />
+            문의사항은 행사 담당자에게 연락해주세요.
+          </p>
+          {event && (
+            <div className="mt-4 text-sm text-muted-foreground">
+              <p className="font-medium text-foreground">{event.title}</p>
+              <p>{event.event_date}</p>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   if (alreadyRegistered) {
     return (
       <div className="min-h-svh bg-background flex items-center justify-center p-4">
-        <div className="text-center space-y-4">
-          <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-amber-500/10">
-            <AlertCircle className="w-10 h-10 text-amber-500" />
+        <div className="text-center space-y-4 animate-fade-in">
+          <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-warning/10">
+            <AlertCircle className="w-10 h-10 text-warning" />
           </div>
           <h2 className="text-xl font-bold text-foreground">이미 등록되었습니다</h2>
           <p className="text-muted-foreground text-sm leading-relaxed">
@@ -228,7 +276,7 @@ const AttendancePage = () => {
   if (success) {
     return (
       <div className="min-h-svh bg-background flex items-center justify-center p-4">
-        <div className="text-center space-y-4">
+        <div className="text-center space-y-4 animate-fade-in">
           <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-success/10 animate-check-bounce">
             <CheckCircle2 className="w-10 h-10 text-success" />
           </div>
@@ -244,7 +292,7 @@ const AttendancePage = () => {
 
   return (
     <div className="min-h-svh bg-muted/30 pb-8">
-      {/* Logo placeholder */}
+      {/* Top Bar */}
       <div className="bg-primary text-primary-foreground px-4 py-3 flex items-center gap-3">
         <div className="w-10 h-10 rounded-lg bg-primary-foreground/20 flex items-center justify-center shrink-0">
           <Building2 className="w-6 h-6" />
@@ -253,12 +301,10 @@ const AttendancePage = () => {
       </div>
 
       <div className="px-4 pt-5 max-w-lg mx-auto">
-        {/* Event Info Header */}
-        <div className="bg-card rounded-2xl shadow-card overflow-hidden mb-5">
+        {/* Event Info */}
+        <div className="bg-card rounded-xl shadow-card overflow-hidden mb-5 animate-fade-in">
           <div className="p-5">
-            <h1 className="text-lg font-bold text-foreground leading-snug">
-              {event?.title}
-            </h1>
+            <h1 className="text-lg font-bold text-foreground leading-snug">{event?.title}</h1>
             {event?.description && (
               <p className="text-sm text-muted-foreground mt-1.5">{event.description}</p>
             )}
@@ -280,72 +326,87 @@ const AttendancePage = () => {
         </div>
 
         {/* Registration Form */}
-        <form onSubmit={handleSubmit} className="space-y-5">
-          <div className="bg-card rounded-2xl shadow-card p-5 space-y-5">
+        <form onSubmit={handleSubmit} className="space-y-5" noValidate>
+          <div className="bg-card rounded-xl shadow-card p-5 space-y-5 animate-fade-in">
             <p className="text-sm font-medium text-foreground">
               참석 확인을 위해 아래 정보를 입력해주세요.
             </p>
 
-            <div className="space-y-2">
-              <label className="text-sm font-semibold text-foreground">
+            <div className="space-y-1.5">
+              <label htmlFor="org" className="text-sm font-semibold text-foreground">
                 소속 <span className="text-destructive">*</span>
               </label>
               <Input
+                id="org"
                 value={form.organization}
-                onChange={(e) => setForm({ ...form, organization: e.target.value })}
+                onChange={(e) => updateField('organization', e.target.value)}
                 placeholder="예: 경기도청 AI프런티어정책과"
-                className="h-12 text-base bg-secondary/50 border-border/60"
+                className={`h-12 bg-secondary/50 border-border/60 ${errors.organization ? 'border-destructive' : ''}`}
+                aria-invalid={!!errors.organization}
+                aria-describedby={errors.organization ? 'org-error' : undefined}
               />
+              {errors.organization && <p id="org-error" className="text-xs text-destructive">{errors.organization}</p>}
             </div>
 
-            <div className="space-y-2">
-              <label className="text-sm font-semibold text-foreground">
-                직급
-              </label>
+            <div className="space-y-1.5">
+              <label htmlFor="position" className="text-sm font-semibold text-foreground">직급</label>
               <Input
+                id="position"
                 value={form.position}
-                onChange={(e) => setForm({ ...form, position: e.target.value })}
+                onChange={(e) => updateField('position', e.target.value)}
                 placeholder="예: 주무관"
-                className="h-12 text-base bg-secondary/50 border-border/60"
+                className="h-12 bg-secondary/50 border-border/60"
               />
             </div>
 
-            <div className="space-y-2">
-              <label className="text-sm font-semibold text-foreground">
+            <div className="space-y-1.5">
+              <label htmlFor="name" className="text-sm font-semibold text-foreground">
                 이름 <span className="text-destructive">*</span>
               </label>
               <Input
+                id="name"
                 value={form.name}
-                onChange={(e) => setForm({ ...form, name: e.target.value })}
+                onChange={(e) => updateField('name', e.target.value)}
                 placeholder="이름을 입력해주세요"
-                className="h-12 text-base bg-secondary/50 border-border/60"
+                className={`h-12 bg-secondary/50 border-border/60 ${errors.name ? 'border-destructive' : ''}`}
+                aria-invalid={!!errors.name}
+                aria-describedby={errors.name ? 'name-error' : undefined}
               />
+              {errors.name && <p id="name-error" className="text-xs text-destructive">{errors.name}</p>}
             </div>
 
-            <div className="space-y-2">
-              <label className="text-sm font-semibold text-foreground">
+            <div className="space-y-1.5">
+              <label htmlFor="phone" className="text-sm font-semibold text-foreground">
                 연락처 <span className="text-destructive">*</span>
               </label>
               <Input
+                id="phone"
                 type="tel"
                 value={form.phone}
                 onChange={(e) => handlePhoneChange(e.target.value)}
                 placeholder="010-0000-0000"
-                className="h-12 text-base bg-secondary/50 border-border/60"
+                className={`h-12 bg-secondary/50 border-border/60 ${errors.phone ? 'border-destructive' : ''}`}
+                aria-invalid={!!errors.phone}
+                aria-describedby={errors.phone ? 'phone-error' : undefined}
               />
+              {errors.phone && <p id="phone-error" className="text-xs text-destructive">{errors.phone}</p>}
             </div>
           </div>
 
-          {/* Signature Section */}
-          <div className="bg-card rounded-2xl shadow-card p-5 space-y-3">
+          {/* Signature */}
+          <div className="bg-card rounded-xl shadow-card p-5 space-y-3 animate-fade-in">
             <div className="flex items-center justify-between">
               <label className="text-sm font-semibold text-foreground">
                 서명 <span className="text-destructive">*</span>
               </label>
               <button
                 type="button"
-                onClick={() => sigCanvas.current?.clear()}
+                onClick={() => {
+                  sigCanvas.current?.clear();
+                  if (errors.signature) setErrors({ ...errors, signature: '' });
+                }}
                 className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                aria-label="서명 다시 쓰기"
               >
                 <RotateCcw className="w-3 h-3" />
                 다시 쓰기
@@ -353,7 +414,7 @@ const AttendancePage = () => {
             </div>
             <div
               ref={sigContainerRef}
-              className="border-2 border-dashed border-border rounded-xl bg-white overflow-hidden relative"
+              className={`border-2 border-dashed rounded-xl bg-white overflow-hidden relative ${errors.signature ? 'border-destructive' : 'border-border'}`}
             >
               <SignatureCanvas
                 ref={sigCanvas}
@@ -362,18 +423,23 @@ const AttendancePage = () => {
                   style: { width: '100%', height: '200px' },
                 }}
                 backgroundColor="rgba(255,255,255,0)"
+                onEnd={() => {
+                  if (errors.signature) setErrors({ ...errors, signature: '' });
+                }}
               />
               <span className="absolute inset-0 flex items-center justify-center text-sm text-muted-foreground/40 pointer-events-none select-none">
                 서명해주세요
               </span>
             </div>
+            {errors.signature && <p className="text-xs text-destructive">{errors.signature}</p>}
           </div>
 
-          {/* Submit Button */}
+          {/* Submit */}
           <Button
             type="submit"
-            className="w-full h-14 text-base font-bold rounded-xl shadow-lg"
+            className="w-full h-14 text-base font-bold rounded-xl shadow-md"
             disabled={submitting}
+            aria-label="참석 등록하기"
           >
             {submitting ? (
               <>

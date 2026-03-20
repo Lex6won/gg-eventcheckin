@@ -8,12 +8,17 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
 import {
-  ArrowLeft, Printer, Users, Calendar, MapPin, Clock, Hash,
-  Loader2, Trash2, Copy, Download, Pencil, Link2, QrCode, Maximize2, FileImage,
+  ArrowLeft, Users, Calendar, MapPin, Clock, Hash,
+  Loader2, Trash2, Copy, Download, Pencil, Maximize2, FileImage,
+  BarChart3,
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { toast } from 'sonner';
 import { downloadQRPoster, downloadQRImage } from '@/lib/qrExport';
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  PieChart, Pie, Cell, Legend,
+} from 'recharts';
 
 interface Attendee {
   id: string;
@@ -38,6 +43,17 @@ interface EventData {
   status: string | null;
 }
 
+const CHART_COLORS = [
+  'hsl(221, 80%, 48%)',
+  'hsl(160, 84%, 29%)',
+  'hsl(38, 92%, 50%)',
+  'hsl(0, 72%, 51%)',
+  'hsl(262, 52%, 47%)',
+  'hsl(190, 90%, 35%)',
+  'hsl(30, 80%, 55%)',
+  'hsl(330, 70%, 50%)',
+];
+
 const AdminEventDetail = () => {
   const { eventId } = useParams<{ eventId: string }>();
   const { user, loading: authLoading } = useAuth();
@@ -46,6 +62,7 @@ const AdminEventDetail = () => {
   const [attendees, setAttendees] = useState<Attendee[]>([]);
   const [loading, setLoading] = useState(true);
   const [showEdit, setShowEdit] = useState(false);
+  const [showStats, setShowStats] = useState(false);
   const [editForm, setEditForm] = useState<Partial<EventData>>({});
   const [saving, setSaving] = useState(false);
   const qrRef = useRef<HTMLDivElement>(null);
@@ -144,6 +161,33 @@ const AdminEventDetail = () => {
 
   const updateEdit = (key: string, value: string) => setEditForm({ ...editForm, [key]: value });
 
+  // Stats data
+  const orgStats = (() => {
+    const map = new Map<string, number>();
+    attendees.forEach((a) => {
+      map.set(a.organization, (map.get(a.organization) || 0) + 1);
+    });
+    return Array.from(map.entries())
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 8);
+  })();
+
+  const timeStats = (() => {
+    const map = new Map<string, number>();
+    attendees.forEach((a) => {
+      if (a.checked_in_at) {
+        const hour = new Date(a.checked_in_at).getHours();
+        const min = new Date(a.checked_in_at).getMinutes();
+        const label = `${String(hour).padStart(2, '0')}:${min < 30 ? '00' : '30'}`;
+        map.set(label, (map.get(label) || 0) + 1);
+      }
+    });
+    return Array.from(map.entries())
+      .map(([time, count]) => ({ time, count }))
+      .sort((a, b) => a.time.localeCompare(b.time));
+  })();
+
   if (loading || authLoading) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -153,26 +197,27 @@ const AdminEventDetail = () => {
   }
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-6 space-y-6">
+    <div className="max-w-5xl mx-auto px-4 py-6 space-y-5">
       {/* Back nav */}
       <button
         onClick={() => navigate('/admin/events')}
         className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+        aria-label="행사 목록으로 돌아가기"
       >
         <ArrowLeft className="w-4 h-4" />
         행사 목록
       </button>
 
       {/* Event Info Card */}
-      <div className="bg-card rounded-2xl shadow-sm border border-border/50 p-6 space-y-4">
-        <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+      <div className="bg-card rounded-xl shadow-sm border border-border/50 p-5 md:p-6 space-y-4 animate-fade-in">
+        <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-5">
           <div className="space-y-3 flex-1">
             <div className="flex items-start justify-between gap-2">
               <h1 className="text-2xl font-bold text-foreground tracking-tight">{event?.title}</h1>
-              <span className={`text-xs font-medium px-2.5 py-1 rounded-full whitespace-nowrap ${
-                event?.status === '진행중' ? 'bg-primary/10 text-primary' :
+              <span className={`text-xs font-medium px-2.5 py-1 rounded-lg whitespace-nowrap ${
+                event?.status === '진행중' ? 'bg-success/10 text-success' :
                 event?.status === '완료' ? 'bg-muted text-muted-foreground' :
-                'bg-secondary text-secondary-foreground'
+                'bg-primary/10 text-primary'
               }`}>
                 {event?.status || '예정'}
               </span>
@@ -191,38 +236,41 @@ const AdminEventDetail = () => {
                 <MapPin className="w-4 h-4" /> {event?.location}
               </span>
             </div>
-            <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary/10 text-primary text-sm font-medium">
-              <Hash className="w-3.5 h-3.5" /> 접속코드: {event?.access_code}
+            <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary/10 text-primary text-sm font-medium font-mono">
+              <Hash className="w-3.5 h-3.5" /> {event?.access_code}
             </div>
 
             {/* Action buttons */}
             <div className="flex flex-wrap gap-2 pt-2">
-              <Button size="sm" onClick={() => navigate(`/admin/events/${eventId}/attendees`)}>
-                <Users className="w-4 h-4 mr-1" /> 참석자 목록 ({attendees.length})
+              <Button size="sm" onClick={() => navigate(`/admin/events/${eventId}/attendees`)} aria-label="참석자 목록 보기">
+                <Users className="w-4 h-4 mr-1" /> 참석자 ({attendees.length})
               </Button>
-              <Button size="sm" variant="outline" onClick={handleCopyLink}>
+              <Button size="sm" variant="outline" onClick={() => setShowStats(true)} aria-label="통계 보기">
+                <BarChart3 className="w-4 h-4 mr-1" /> 통계
+              </Button>
+              <Button size="sm" variant="outline" onClick={handleCopyLink} aria-label="참석 등록 링크 복사">
                 <Copy className="w-4 h-4 mr-1" /> 링크 복사
               </Button>
-              <Button size="sm" variant="outline" onClick={() => navigate(`/admin/events/${eventId}/qr`)}>
+              <Button size="sm" variant="outline" onClick={() => navigate(`/admin/events/${eventId}/qr`)} aria-label="QR코드 전체화면">
                 <Maximize2 className="w-4 h-4 mr-1" /> QR 전체화면
               </Button>
-              <Button size="sm" variant="outline" onClick={handleDownloadQR}>
+              <Button size="sm" variant="outline" onClick={handleDownloadQR} aria-label="QR코드 이미지 다운로드">
                 <Download className="w-4 h-4 mr-1" /> QR 이미지
               </Button>
-              <Button size="sm" variant="outline" onClick={handleDownloadPoster}>
-                <FileImage className="w-4 h-4 mr-1" /> QR 포스터(PDF)
+              <Button size="sm" variant="outline" onClick={handleDownloadPoster} aria-label="QR 포스터 PDF 다운로드">
+                <FileImage className="w-4 h-4 mr-1" /> 포스터
               </Button>
-              <Button size="sm" variant="outline" onClick={openEdit}>
+              <Button size="sm" variant="outline" onClick={openEdit} aria-label="행사 수정">
                 <Pencil className="w-4 h-4 mr-1" /> 수정
               </Button>
-              <Button size="sm" variant="outline" onClick={handleDelete} className="text-destructive hover:text-destructive">
+              <Button size="sm" variant="outline" onClick={handleDelete} className="text-destructive hover:text-destructive" aria-label="행사 삭제">
                 <Trash2 className="w-4 h-4 mr-1" /> 삭제
               </Button>
             </div>
           </div>
 
           {/* QR Code */}
-          <div ref={qrRef} className="flex-shrink-0 bg-secondary/50 rounded-xl p-4 text-center space-y-3">
+          <div ref={qrRef} className="flex-shrink-0 bg-secondary/50 rounded-xl p-4 text-center space-y-2">
             <QRCodeSVG value={attendUrl} size={160} level="H" />
             <p className="text-xs text-muted-foreground">QR코드로 참석 등록</p>
             <p className="text-[10px] text-muted-foreground/70 font-mono">{event?.access_code}</p>
@@ -231,18 +279,18 @@ const AdminEventDetail = () => {
       </div>
 
       {/* Real-time count */}
-      <div className="bg-card rounded-2xl shadow-sm border border-border/50 p-5 flex items-center gap-3">
-        <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
-          <Users className="w-5 h-5 text-primary" />
+      <div className="bg-card rounded-xl shadow-sm border border-border/50 p-5 flex items-center gap-4">
+        <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center">
+          <Users className="w-6 h-6 text-primary" />
         </div>
         <div>
-          <p className="text-2xl font-bold text-foreground tabular-nums">{attendees.length}명</p>
+          <p className="text-3xl font-bold text-foreground tabular-nums">{attendees.length}<span className="text-lg font-normal text-muted-foreground ml-0.5">명</span></p>
           <p className="text-xs text-muted-foreground">참석 등록 완료</p>
         </div>
       </div>
 
       {/* Attendees Table */}
-      <div className="bg-card rounded-2xl shadow-sm border border-border/50 overflow-hidden">
+      <div className="bg-card rounded-xl shadow-sm border border-border/50 overflow-hidden">
         <div className="p-5 border-b border-border/50 flex items-center justify-between">
           <h2 className="font-bold text-foreground flex items-center gap-2">
             <Users className="w-5 h-5 text-primary" /> 참석자 명부
@@ -292,6 +340,71 @@ const AdminEventDetail = () => {
         )}
       </div>
 
+      {/* Stats Dialog */}
+      <Dialog open={showStats} onOpenChange={setShowStats}>
+        <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <BarChart3 className="w-5 h-5 text-primary" />
+              참석자 통계
+            </DialogTitle>
+          </DialogHeader>
+
+          {attendees.length === 0 ? (
+            <p className="text-center text-muted-foreground py-8">참석자가 없어 통계를 표시할 수 없습니다.</p>
+          ) : (
+            <div className="space-y-8">
+              {/* Org chart */}
+              <div className="space-y-3">
+                <h3 className="text-sm font-semibold text-foreground">소속별 참석 현황</h3>
+                {orgStats.length > 0 && (
+                  <div className="h-64">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={orgStats}
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={50}
+                          outerRadius={90}
+                          paddingAngle={2}
+                          dataKey="value"
+                          label={({ name, value }) => `${name} (${value})`}
+                        >
+                          {orgStats.map((_, index) => (
+                            <Cell key={index} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                          ))}
+                        </Pie>
+                        <Tooltip />
+                        <Legend />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
+              </div>
+
+              {/* Time trend */}
+              {timeStats.length > 0 && (
+                <div className="space-y-3">
+                  <h3 className="text-sm font-semibold text-foreground">시간대별 등록 추이</h3>
+                  <div className="h-56">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={timeStats}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(210, 18%, 90%)" />
+                        <XAxis dataKey="time" tick={{ fontSize: 12 }} />
+                        <YAxis allowDecimals={false} tick={{ fontSize: 12 }} />
+                        <Tooltip />
+                        <Bar dataKey="count" fill="hsl(221, 80%, 48%)" radius={[4, 4, 0, 0]} name="등록 수" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
       {/* Edit Dialog */}
       <Dialog open={showEdit} onOpenChange={setShowEdit}>
         <DialogContent className="sm:max-w-md">
@@ -300,41 +413,42 @@ const AdminEventDetail = () => {
           </DialogHeader>
           <form onSubmit={handleSaveEdit} className="space-y-4">
             <div className="space-y-1.5">
-              <label className="text-sm font-medium text-foreground">행사명 *</label>
-              <Input value={editForm.title || ''} onChange={(e) => updateEdit('title', e.target.value)} required />
+              <label htmlFor="edit-title" className="text-sm font-medium text-foreground">행사명 *</label>
+              <Input id="edit-title" value={editForm.title || ''} onChange={(e) => updateEdit('title', e.target.value)} required />
             </div>
             <div className="space-y-1.5">
-              <label className="text-sm font-medium text-foreground">설명</label>
-              <Input value={editForm.description || ''} onChange={(e) => updateEdit('description', e.target.value)} />
+              <label htmlFor="edit-desc" className="text-sm font-medium text-foreground">설명</label>
+              <Input id="edit-desc" value={editForm.description || ''} onChange={(e) => updateEdit('description', e.target.value)} />
             </div>
             <div className="grid grid-cols-3 gap-3">
               <div className="space-y-1.5">
-                <label className="text-sm font-medium text-foreground">날짜 *</label>
-                <Input type="date" value={editForm.event_date || ''} onChange={(e) => updateEdit('event_date', e.target.value)} required />
+                <label htmlFor="edit-date" className="text-sm font-medium text-foreground">날짜 *</label>
+                <Input id="edit-date" type="date" value={editForm.event_date || ''} onChange={(e) => updateEdit('event_date', e.target.value)} required />
               </div>
               <div className="space-y-1.5">
-                <label className="text-sm font-medium text-foreground">시작 *</label>
-                <Input type="time" value={editForm.start_time || ''} onChange={(e) => updateEdit('start_time', e.target.value)} required />
+                <label htmlFor="edit-start" className="text-sm font-medium text-foreground">시작 *</label>
+                <Input id="edit-start" type="time" value={editForm.start_time || ''} onChange={(e) => updateEdit('start_time', e.target.value)} required />
               </div>
               <div className="space-y-1.5">
-                <label className="text-sm font-medium text-foreground">종료 *</label>
-                <Input type="time" value={editForm.end_time || ''} onChange={(e) => updateEdit('end_time', e.target.value)} required />
+                <label htmlFor="edit-end" className="text-sm font-medium text-foreground">종료 *</label>
+                <Input id="edit-end" type="time" value={editForm.end_time || ''} onChange={(e) => updateEdit('end_time', e.target.value)} required />
               </div>
             </div>
             <div className="space-y-1.5">
-              <label className="text-sm font-medium text-foreground">장소 *</label>
-              <Input value={editForm.location || ''} onChange={(e) => updateEdit('location', e.target.value)} required />
+              <label htmlFor="edit-location" className="text-sm font-medium text-foreground">장소 *</label>
+              <Input id="edit-location" value={editForm.location || ''} onChange={(e) => updateEdit('location', e.target.value)} required />
             </div>
             <div className="space-y-1.5">
-              <label className="text-sm font-medium text-foreground">주관부서 *</label>
-              <Input value={editForm.organizer || ''} onChange={(e) => updateEdit('organizer', e.target.value)} required />
+              <label htmlFor="edit-org" className="text-sm font-medium text-foreground">주관부서 *</label>
+              <Input id="edit-org" value={editForm.organizer || ''} onChange={(e) => updateEdit('organizer', e.target.value)} required />
             </div>
             <div className="space-y-1.5">
-              <label className="text-sm font-medium text-foreground">상태</label>
+              <label htmlFor="edit-status" className="text-sm font-medium text-foreground">상태</label>
               <select
+                id="edit-status"
                 value={editForm.status || '예정'}
                 onChange={(e) => updateEdit('status', e.target.value)}
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                className="flex h-10 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 <option value="예정">예정</option>
                 <option value="진행중">진행중</option>
