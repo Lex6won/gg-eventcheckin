@@ -83,24 +83,20 @@ const AdminEventDetail = () => {
   };
 
   const handleDownloadQR = () => {
-    const svg = qrRef.current?.querySelector('svg');
-    if (!svg) return;
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d')!;
-    const svgData = new XMLSerializer().serializeToString(svg);
-    const img = new Image();
-    img.onload = () => {
-      canvas.width = 512;
-      canvas.height = 512;
-      ctx.fillStyle = '#fff';
-      ctx.fillRect(0, 0, 512, 512);
-      ctx.drawImage(img, 0, 0, 512, 512);
-      const a = document.createElement('a');
-      a.download = `QR_${event?.access_code}.png`;
-      a.href = canvas.toDataURL('image/png');
-      a.click();
-    };
-    img.src = `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(svgData)))}`;
+    const svg = qrRef.current?.querySelector('svg') as SVGSVGElement | null;
+    if (!svg || !event) return;
+    downloadQRImage(svg, event.access_code);
+  };
+
+  const handleDownloadPoster = async () => {
+    const svg = qrRef.current?.querySelector('svg') as SVGSVGElement | null;
+    if (!svg || !event) return;
+    try {
+      await downloadQRPoster(event, svg);
+      toast.success('QR 포스터가 다운로드되었습니다.');
+    } catch {
+      toast.error('포스터 다운로드에 실패했습니다.');
+    }
   };
 
   const handleDelete = async () => {
