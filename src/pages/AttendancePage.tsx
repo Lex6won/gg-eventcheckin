@@ -174,20 +174,8 @@ const AttendancePage = () => {
         return;
       }
 
-      // Upload signature
-      const dataUrl = sigCanvas.current!.toDataURL('image/png');
-      const blob = await (await fetch(dataUrl)).blob();
-      const fileName = `${event.id}/${Date.now()}_${form.name.trim()}.png`;
-
-      const { error: uploadError } = await supabase.storage
-        .from('signatures')
-        .upload(fileName, blob, { contentType: 'image/png' });
-
-      if (uploadError) throw uploadError;
-
-      const { data: urlData } = supabase.storage
-        .from('signatures')
-        .getPublicUrl(fileName);
+      // Save signature as base64 data URL (no storage upload needed)
+      const signatureDataUrl = sigCanvas.current!.toDataURL('image/png');
 
       const { error: insertError } = await supabase.from('attendees').insert({
         event_id: event.id,
@@ -195,7 +183,7 @@ const AttendancePage = () => {
         name: form.name.trim(),
         position: form.position.trim() || null,
         phone: form.phone,
-        signature_url: urlData.publicUrl,
+        signature_url: signatureDataUrl,
       });
 
       if (insertError) throw insertError;
