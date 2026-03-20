@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, Shield } from 'lucide-react';
+import gyeonggiLogo from '@/assets/gyeonggi-logo.jpg';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
