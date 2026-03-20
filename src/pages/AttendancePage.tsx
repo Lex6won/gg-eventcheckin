@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { CheckCircle2, Calendar, MapPin, Clock, Loader2, Building2, RotateCcw, AlertCircle, XCircle } from 'lucide-react';
 import { toast } from 'sonner';
+import gyeonggiLogo from '@/assets/gyeonggi-logo.jpg';
 
 interface EventData {
   id: string;
