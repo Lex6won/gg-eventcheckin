@@ -10,11 +10,12 @@ import {
 import {
   ArrowLeft, Users, Calendar, MapPin, Clock, Hash,
   Loader2, Trash2, Copy, Download, Pencil, Maximize2, FileImage,
-  BarChart3, ImagePlus, X,
+  BarChart3, ImagePlus, X, FileSpreadsheet, FileText,
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { toast } from 'sonner';
 import { downloadQRPoster, downloadQRImage } from '@/lib/qrExport';
+import { exportToExcel, exportToPDF } from '@/lib/exportAttendees';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend,
