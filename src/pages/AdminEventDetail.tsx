@@ -321,8 +321,8 @@ const AdminEventDetail = () => {
               <Button size="sm" variant="outline" onClick={handleDownloadQR} aria-label="QR코드 이미지 다운로드">
                 <Download className="w-4 h-4 mr-1" /> QR 이미지
               </Button>
-              <Button size="sm" variant="outline" onClick={handleDownloadPoster} aria-label="QR 포스터 PDF 다운로드">
-                <FileImage className="w-4 h-4 mr-1" /> QR 포스터
+              <Button size="sm" variant="outline" onClick={handleDownloadPoster} aria-label="행사 포스터 PDF 다운로드">
+                <FileImage className="w-4 h-4 mr-1" /> 행사 포스터
               </Button>
               <Button size="sm" variant="outline" onClick={openEdit} aria-label="행사 수정">
                 <Pencil className="w-4 h-4 mr-1" /> 수정
