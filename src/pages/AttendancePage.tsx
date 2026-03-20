@@ -438,22 +438,33 @@ const AttendancePage = () => {
             {errors.signature && <p className="text-xs text-destructive">{errors.signature}</p>}
           </div>
 
-          {/* Submit */}
-          <Button
-            type="submit"
-            className="w-full h-14 text-base font-bold rounded-xl shadow-md"
-            disabled={submitting}
-            aria-label="참석 등록하기"
-          >
-            {submitting ? (
-              <>
-                <Loader2 className="w-5 h-5 animate-spin" />
-                등록 중...
-              </>
-            ) : (
-              '참석 등록'
-            )}
-          </Button>
+          {/* Submit + Home */}
+          <div className="flex gap-3">
+            <Button
+              type="button"
+              variant="outline"
+              className="h-14 px-5 text-base rounded-xl"
+              onClick={() => window.location.href = '/'}
+              aria-label="홈으로 돌아가기"
+            >
+              홈
+            </Button>
+            <Button
+              type="submit"
+              className="flex-1 h-14 text-base font-bold rounded-xl shadow-md"
+              disabled={submitting}
+              aria-label="참석 등록하기"
+            >
+              {submitting ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  등록 중...
+                </>
+              ) : (
+                '참석 등록'
+              )}
+            </Button>
+          </div>
         </form>
       </div>
     </div>
