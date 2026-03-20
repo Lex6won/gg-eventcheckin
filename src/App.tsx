@@ -13,6 +13,7 @@ import AdminEventDetail from "./pages/AdminEventDetail";
 import AdminEventAttendees from "./pages/AdminEventAttendees";
 import AdminAttendees from "./pages/AdminAttendees";
 import AdminSettings from "./pages/AdminSettings";
+import AdminEventQR from "./pages/AdminEventQR";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
