@@ -14,9 +14,11 @@ import {
 } from '@/components/ui/dialog';
 import {
   ArrowLeft, Users, Calendar, MapPin, Clock, Loader2, Trash2, Search, X,
+  FileSpreadsheet, FileText,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { exportToExcel, exportToPDF } from '@/lib/exportAttendees';
 
 interface Attendee {
   id: string;
