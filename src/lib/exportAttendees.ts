@@ -67,9 +67,11 @@ export async function exportToExcel(event: EventData, attendees: Attendee[]) {
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet('참석확인부');
 
+  // Column widths: 1 Excel width unit ≈ 7.5 pixels
+  const sigColWidth = 30;
   ws.columns = [
     { width: 6 }, { width: 22 }, { width: 10 }, { width: 12 },
-    { width: 16 }, { width: 28 }, { width: 14 },
+    { width: 16 }, { width: sigColWidth }, { width: 14 },
   ];
 
   const headerFill: ExcelJS.Fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF2563EB' } };
@@ -117,7 +119,8 @@ export async function exportToExcel(event: EventData, attendees: Attendee[]) {
     const a = attendees[idx];
     const rowNum = idx + 8;
     const row = ws.getRow(rowNum);
-    row.height = 50;
+    const rowHeight = 55;
+    row.height = rowHeight;
 
     const vals = [idx + 1, a.organization, a.position || '-', a.name, a.phone, '', formatCheckedIn(a.checked_in_at)];
     vals.forEach((v, ci) => {
@@ -130,12 +133,26 @@ export async function exportToExcel(event: EventData, attendees: Attendee[]) {
 
     if (a.signature_url) {
       try {
-        const buf = await fetchImageAsBuffer(a.signature_url);
+        const isDataUrl = a.signature_url.startsWith('data:');
+        let buf: ArrayBuffer | null = null;
+        if (isDataUrl) {
+          const base64 = a.signature_url.split(',')[1];
+          const binaryStr = atob(base64);
+          const bytes = new Uint8Array(binaryStr.length);
+          for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
+          buf = bytes.buffer;
+        } else {
+          buf = await fetchImageAsBuffer(a.signature_url);
+        }
         if (buf) {
           const imgId = wb.addImage({ buffer: buf, extension: 'png' });
+          // Use tl + ext for reliable sizing
+          // Column width in px ≈ width * 7.5, row height in px ≈ height * 1.33
+          const imgWidthPx = (sigColWidth - 2) * 7.5;
+          const imgHeightPx = (rowHeight - 6) * 1.33;
           ws.addImage(imgId, {
-            tl: { col: 5.05, row: rowNum - 0.95 } as any,
-            br: { col: 5.95, row: rowNum - 0.05 } as any,
+            tl: { col: 5.05, row: rowNum - 0.93 } as any,
+            ext: { width: imgWidthPx, height: imgHeightPx },
           });
         }
       } catch { /* skip */ }
