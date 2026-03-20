@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
+import { getPublicOrigin } from '@/lib/getPublicUrl';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/lib/auth';
 import { supabase } from '@/integrations/supabase/client';
@@ -45,7 +46,7 @@ const AdminEventQR = () => {
     if (user) fetchEvent();
   }, [user, fetchEvent]);
 
-  const attendUrl = `${window.location.origin}/attend/${event?.access_code}`;
+  const attendUrl = `${getPublicOrigin()}/attend/${event?.access_code}`;
 
   if (loading || authLoading) {
     return (
