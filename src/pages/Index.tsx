@@ -17,7 +17,8 @@ const Index = () => {
   };
 
   return (
-    <div className="min-h-svh bg-background flex flex-col items-center justify-center p-4">
+    <div className="min-h-svh bg-background flex flex-col items-center justify-center p-4 relative">
+      <img src={gyeonggiLogo} alt="경기도" className="absolute top-4 right-4 h-12 w-auto object-contain" />
       <div className="w-full max-w-md space-y-8">
         <div className="text-center space-y-2">
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-primary/10 mb-4">
