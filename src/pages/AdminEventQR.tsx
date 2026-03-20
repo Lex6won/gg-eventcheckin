@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
+import { getPublicOrigin } from '@/lib/getPublicUrl';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/lib/auth';
 import { supabase } from '@/integrations/supabase/client';
