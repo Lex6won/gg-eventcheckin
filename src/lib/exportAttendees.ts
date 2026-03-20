@@ -69,7 +69,7 @@ export async function exportToExcel(event: EventData, attendees: Attendee[]) {
 
   ws.columns = [
     { width: 6 }, { width: 22 }, { width: 10 }, { width: 12 },
-    { width: 16 }, { width: 18 }, { width: 14 },
+    { width: 16 }, { width: 28 }, { width: 14 },
   ];
 
   const headerFill: ExcelJS.Fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF2563EB' } };
@@ -117,7 +117,7 @@ export async function exportToExcel(event: EventData, attendees: Attendee[]) {
     const a = attendees[idx];
     const rowNum = idx + 8;
     const row = ws.getRow(rowNum);
-    row.height = 40;
+    row.height = 50;
 
     const vals = [idx + 1, a.organization, a.position || '-', a.name, a.phone, '', formatCheckedIn(a.checked_in_at)];
     vals.forEach((v, ci) => {
@@ -134,8 +134,8 @@ export async function exportToExcel(event: EventData, attendees: Attendee[]) {
         if (buf) {
           const imgId = wb.addImage({ buffer: buf, extension: 'png' });
           ws.addImage(imgId, {
-            tl: { col: 5.1, row: rowNum - 0.9 } as any,
-            br: { col: 5.9, row: rowNum - 0.1 } as any,
+            tl: { col: 5.05, row: rowNum - 0.95 } as any,
+            br: { col: 5.95, row: rowNum - 0.05 } as any,
           });
         }
       } catch { /* skip */ }
@@ -206,7 +206,7 @@ export async function exportToPDF(event: EventData, attendees: Attendee[]) {
     head: [['번호', '소속', '직책/직급', '이름', '연락처', '서명', '등록시각']],
     body: bodyData,
     styles: { font: 'NotoSansKR', fontSize: 9, cellPadding: 3, valign: 'middle', halign: 'center', minCellHeight: 14 },
-    headStyles: { fillColor: [37, 99, 235], textColor: 255, fontStyle: 'bold', minCellHeight: 10 },
+    headStyles: { fillColor: [37, 99, 235], textColor: 255, fontStyle: 'normal', minCellHeight: 10 },
     columnStyles: {
       0: { cellWidth: 12 }, 1: { cellWidth: 34 }, 2: { cellWidth: 18 },
       3: { cellWidth: 22 }, 4: { cellWidth: 28 }, 5: { cellWidth: 32 }, 6: { cellWidth: 24 },
@@ -351,7 +351,7 @@ export async function exportAllAttendeesToPDF(attendees: AllAttendeeRow[]) {
     head: [['번호', '행사', '날짜', '소속', '성명', '직급', '연락처', '등록시간']],
     body: bodyData,
     styles: { font: 'NotoSansKR', fontSize: 9, cellPadding: 3, valign: 'middle', halign: 'center' },
-    headStyles: { fillColor: [37, 99, 235], textColor: 255, fontStyle: 'bold' },
+    headStyles: { fillColor: [37, 99, 235], textColor: 255, fontStyle: 'normal' },
     columnStyles: {
       0: { cellWidth: 12 }, 1: { cellWidth: 50 }, 2: { cellWidth: 26 }, 3: { cellWidth: 40 },
       4: { cellWidth: 24 }, 5: { cellWidth: 20 }, 6: { cellWidth: 30 }, 7: { cellWidth: 30 },
