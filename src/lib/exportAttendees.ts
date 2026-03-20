@@ -278,8 +278,8 @@ export async function exportAllAttendeesToExcel(attendees: AllAttendeeRow[]) {
     { width: 12 }, { width: 10 }, { width: 16 }, { width: 16 },
   ];
 
-  const headerFill: ExcelJS.Fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF2563EB' } };
-  const headerFont: Partial<ExcelJS.Font> = { bold: true, color: { argb: 'FFFFFFFF' }, size: 10 };
+  const headerFill: ExcelJS.Fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE5E7EB' } };
+  const headerFont: Partial<ExcelJS.Font> = { bold: true, color: { argb: 'FF1F2937' }, size: 10 };
   const borderThin: Partial<ExcelJS.Borders> = {
     top: { style: 'thin' }, bottom: { style: 'thin' },
     left: { style: 'thin' }, right: { style: 'thin' },
