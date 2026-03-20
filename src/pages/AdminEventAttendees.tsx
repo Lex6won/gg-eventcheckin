@@ -211,7 +211,26 @@ const AdminEventAttendees = () => {
         </div>
       </div>
 
-      {/* Search */}
+      {/* Export buttons */}
+      <div className="flex flex-wrap gap-2">
+        <Button
+          onClick={handleExportExcel}
+          disabled={exportingExcel || attendees.length === 0}
+          className="bg-emerald-600 hover:bg-emerald-700 text-white"
+        >
+          {exportingExcel ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <FileSpreadsheet className="w-4 h-4 mr-1" />}
+          엑셀 다운로드
+        </Button>
+        <Button
+          onClick={handleExportPdf}
+          disabled={exportingPdf || attendees.length === 0}
+          className="bg-red-600 hover:bg-red-700 text-white"
+        >
+          {exportingPdf ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <FileText className="w-4 h-4 mr-1" />}
+          PDF 출력
+        </Button>
+      </div>
+
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
         <Input
