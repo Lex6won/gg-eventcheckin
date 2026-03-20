@@ -203,20 +203,22 @@ export async function exportToPDF(event: EventData, attendees: Attendee[]) {
 
   autoTable(doc, {
     startY: 56,
-    head: [['번호', '소속', '직급', '이름', '연락처', '서명', '등록시각']],
+    head: [['번호', '소속', '직책/직급', '이름', '연락처', '서명', '등록시각']],
     body: bodyData,
-    styles: { font: 'NotoSansKR', fontSize: 9, cellPadding: 3, valign: 'middle', halign: 'center' },
-    headStyles: { fillColor: [37, 99, 235], textColor: 255, fontStyle: 'bold' },
+    styles: { font: 'NotoSansKR', fontSize: 9, cellPadding: 3, valign: 'middle', halign: 'center', minCellHeight: 14 },
+    headStyles: { fillColor: [37, 99, 235], textColor: 255, fontStyle: 'bold', minCellHeight: 10 },
     columnStyles: {
-      0: { cellWidth: 12 }, 1: { cellWidth: 36 }, 2: { cellWidth: 18 },
-      3: { cellWidth: 22 }, 4: { cellWidth: 28 }, 5: { cellWidth: 30 }, 6: { cellWidth: 24 },
+      0: { cellWidth: 12 }, 1: { cellWidth: 34 }, 2: { cellWidth: 18 },
+      3: { cellWidth: 22 }, 4: { cellWidth: 28 }, 5: { cellWidth: 32 }, 6: { cellWidth: 24 },
     },
     didDrawCell: (data) => {
       if (data.section === 'body' && data.column.index === 5) {
         const sig = sigImages[data.row.index];
         if (sig) {
           try {
-            doc.addImage(sig, 'PNG', data.cell.x + 2, data.cell.y + 1, data.cell.width - 4, data.cell.height - 2);
+            const imgW = data.cell.width - 4;
+            const imgH = data.cell.height - 3;
+            doc.addImage(sig, 'PNG', data.cell.x + 2, data.cell.y + 1.5, imgW, imgH);
           } catch { /* skip */ }
         }
       }
