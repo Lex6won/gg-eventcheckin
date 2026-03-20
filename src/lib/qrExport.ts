@@ -5,7 +5,7 @@ let fontLoadedPromise: Promise<ArrayBuffer> | null = null;
 function loadNotoSansKR(): Promise<ArrayBuffer> {
   if (!fontLoadedPromise) {
     fontLoadedPromise = fetch(
-      'https://fonts.gstatic.com/s/notosanskr/v36/PbyxFmXiEBPT4ITbgNA5Cgms3VYcOA4oBGQhejE.ttf'
+      'https://raw.githubusercontent.com/google/fonts/main/ofl/notosanskr/NotoSansKR%5Bwght%5D.ttf'
     ).then((r) => {
       if (!r.ok) throw new Error('Font fetch failed');
       return r.arrayBuffer();
