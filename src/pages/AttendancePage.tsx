@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { CheckCircle2, Calendar, MapPin, Clock, Loader2, Building2, RotateCcw, AlertCircle, XCircle } from 'lucide-react';
 import { toast } from 'sonner';
+import gyeonggiLogo from '@/assets/gyeonggi-logo.jpg';
 
 interface EventData {
   id: string;
@@ -288,11 +289,14 @@ const AttendancePage = () => {
   return (
     <div className="min-h-svh bg-muted/30 pb-8" translate="no">
       {/* Top Bar */}
-      <div className="bg-primary text-primary-foreground px-4 py-3 flex items-center gap-3">
-        <div className="w-10 h-10 rounded-lg bg-primary-foreground/20 flex items-center justify-center shrink-0">
-          <Building2 className="w-6 h-6" />
+      <div className="bg-primary text-primary-foreground px-4 py-3 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-lg bg-primary-foreground/20 flex items-center justify-center shrink-0">
+            <Building2 className="w-6 h-6" />
+          </div>
+          <span className="text-sm font-medium opacity-90">행사 참석 확인 시스템</span>
         </div>
-        <span className="text-sm font-medium opacity-90">행사 참석 확인 시스템</span>
+        <img src={gyeonggiLogo} alt="경기도" className="h-10 w-auto object-contain brightness-0 invert" />
       </div>
 
       <div className="px-4 pt-5 max-w-lg mx-auto">
