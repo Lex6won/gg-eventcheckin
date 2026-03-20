@@ -274,6 +274,12 @@ const AttendancePage = () => {
             참석 등록이 정상적으로 완료되었습니다.<br />
             즐거운 교육 되시기 바랍니다.
           </p>
+          <Button
+            className="mt-4 px-8 h-12 text-base rounded-xl"
+            onClick={() => window.close()}
+          >
+            확인
+          </Button>
         </div>
       </div>
     );
