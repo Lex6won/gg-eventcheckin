@@ -101,7 +101,7 @@ export async function exportToExcel(event: EventData, attendees: Attendee[]) {
     row.getCell(2).font = { size: 10 };
   });
 
-  const headers = ['번호', '소속', '직급', '이름', '연락처', '서명', '등록시각'];
+  const headers = ['번호', '소속', '직책/직급', '이름', '연락처', '서명', '등록시각'];
   const headerRow = ws.getRow(7);
   headers.forEach((h, i) => {
     const cell = headerRow.getCell(i + 1);
