@@ -1,5 +1,6 @@
-import { Calendar, MapPin, Users, Hash, Copy } from 'lucide-react';
+import { Calendar, MapPin, Users, Hash, Copy, ClipboardCopy } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { toast } from 'sonner';
 
 interface EventCardProps {
   event: {
@@ -25,6 +26,12 @@ const statusStyles: Record<string, string> = {
 };
 
 const EventCard = ({ event, onClick, onDuplicate }: EventCardProps) => {
+  const handleCopyCode = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    navigator.clipboard.writeText(event.access_code);
+    toast.success(`접속코드 ${event.access_code} 가 복사되었습니다.`);
+  };
+
   return (
     <div className="bg-card rounded-xl shadow-card border border-border/40 hover:shadow-md transition-all animate-fade-in">
       <button
@@ -59,8 +66,18 @@ const EventCard = ({ event, onClick, onDuplicate }: EventCardProps) => {
         </div>
       </button>
 
-      {onDuplicate && (
-        <div className="px-5 pb-4 pt-0">
+      <div className="px-5 pb-4 pt-0 flex gap-2">
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={handleCopyCode}
+          className="text-xs text-muted-foreground hover:text-foreground h-7 px-2"
+          aria-label={`접속코드 ${event.access_code} 복사`}
+        >
+          <ClipboardCopy className="w-3 h-3 mr-1" />
+          코드 복사
+        </Button>
+        {onDuplicate && (
           <Button
             size="sm"
             variant="ghost"
@@ -74,8 +91,8 @@ const EventCard = ({ event, onClick, onDuplicate }: EventCardProps) => {
             <Copy className="w-3 h-3 mr-1" />
             복제
           </Button>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 };
