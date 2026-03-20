@@ -69,6 +69,7 @@ export type Database = {
           id: string
           location: string
           organizer: string
+          poster_url: string | null
           qr_code_url: string | null
           start_time: string
           status: string | null
@@ -85,6 +86,7 @@ export type Database = {
           id?: string
           location: string
           organizer: string
+          poster_url?: string | null
           qr_code_url?: string | null
           start_time: string
           status?: string | null
@@ -101,6 +103,7 @@ export type Database = {
           id?: string
           location?: string
           organizer?: string
+          poster_url?: string | null
           qr_code_url?: string | null
           start_time?: string
           status?: string | null

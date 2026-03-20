@@ -10,7 +10,7 @@ import {
 import {
   ArrowLeft, Users, Calendar, MapPin, Clock, Hash,
   Loader2, Trash2, Copy, Download, Pencil, Maximize2, FileImage,
-  BarChart3,
+  BarChart3, ImagePlus, X,
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { toast } from 'sonner';
@@ -41,6 +41,7 @@ interface EventData {
   organizer: string;
   access_code: string;
   status: string | null;
+  poster_url: string | null;
 }
 
 const CHART_COLORS = [
@@ -63,7 +64,12 @@ const AdminEventDetail = () => {
   const [loading, setLoading] = useState(true);
   const [showEdit, setShowEdit] = useState(false);
   const [showStats, setShowStats] = useState(false);
+  const [showPosterZoom, setShowPosterZoom] = useState(false);
   const [editForm, setEditForm] = useState<Partial<EventData>>({});
+  const [editPosterFile, setEditPosterFile] = useState<File | null>(null);
+  const [editPosterPreview, setEditPosterPreview] = useState<string | null>(null);
+  const [removePosterFlag, setRemovePosterFlag] = useState(false);
+  const editFileInputRef = useRef<HTMLInputElement>(null);
   const [saving, setSaving] = useState(false);
   const qrRef = useRef<HTMLDivElement>(null);
 
@@ -79,7 +85,7 @@ const AdminEventDetail = () => {
       return;
     }
 
-    setEvent(eventRes.data);
+    setEvent(eventRes.data as EventData);
     setAttendees(attendeesRes.data || []);
     setLoading(false);
   }, [eventId, navigate]);
@@ -139,22 +145,67 @@ const AdminEventDetail = () => {
       organizer: event.organizer,
       status: event.status,
     });
+    setEditPosterFile(null);
+    setEditPosterPreview(null);
+    setRemovePosterFlag(false);
     setShowEdit(true);
+  };
+
+  const handleEditPosterSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      toast.error('이미지 파일만 업로드 가능합니다.');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('파일 크기는 5MB 이하로 업로드해주세요.');
+      return;
+    }
+    setEditPosterFile(file);
+    setEditPosterPreview(URL.createObjectURL(file));
+    setRemovePosterFlag(false);
+  };
+
+  const handleRemoveEditPoster = () => {
+    setEditPosterFile(null);
+    if (editPosterPreview) URL.revokeObjectURL(editPosterPreview);
+    setEditPosterPreview(null);
+    setRemovePosterFlag(true);
+    if (editFileInputRef.current) editFileInputRef.current.value = '';
   };
 
   const handleSaveEdit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
-    const { error } = await supabase
-      .from('events')
-      .update(editForm)
-      .eq('id', eventId!);
-    if (error) {
-      toast.error('수정에 실패했습니다.');
-    } else {
+
+    try {
+      let poster_url = event?.poster_url || null;
+
+      if (editPosterFile) {
+        const ext = editPosterFile.name.split('.').pop();
+        const fileName = `${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
+        const { error: uploadError } = await supabase.storage
+          .from('event-posters')
+          .upload(fileName, editPosterFile, { contentType: editPosterFile.type });
+        if (uploadError) throw uploadError;
+        const { data: urlData } = supabase.storage.from('event-posters').getPublicUrl(fileName);
+        poster_url = urlData.publicUrl;
+      } else if (removePosterFlag) {
+        poster_url = null;
+      }
+
+      const { error } = await supabase
+        .from('events')
+        .update({ ...editForm, poster_url })
+        .eq('id', eventId!);
+      if (error) throw error;
+
       toast.success('행사가 수정되었습니다.');
       setShowEdit(false);
       fetchData();
+    } catch {
+      toast.error('수정에 실패했습니다.');
     }
     setSaving(false);
   };
@@ -240,6 +291,19 @@ const AdminEventDetail = () => {
               <Hash className="w-3.5 h-3.5" /> {event?.access_code}
             </div>
 
+            {/* Poster thumbnail */}
+            {event?.poster_url && (
+              <div className="pt-1">
+                <button
+                  type="button"
+                  onClick={() => setShowPosterZoom(true)}
+                  className="rounded-lg overflow-hidden border border-border hover:border-primary/50 transition-colors"
+                >
+                  <img src={event.poster_url} alt="행사 포스터" className="max-h-32 w-auto object-contain" />
+                </button>
+              </div>
+            )}
+
             {/* Action buttons */}
             <div className="flex flex-wrap gap-2 pt-2">
               <Button size="sm" onClick={() => navigate(`/admin/events/${eventId}/attendees`)} aria-label="참석자 목록 보기">
@@ -258,7 +322,7 @@ const AdminEventDetail = () => {
                 <Download className="w-4 h-4 mr-1" /> QR 이미지
               </Button>
               <Button size="sm" variant="outline" onClick={handleDownloadPoster} aria-label="QR 포스터 PDF 다운로드">
-                <FileImage className="w-4 h-4 mr-1" /> 포스터
+                <FileImage className="w-4 h-4 mr-1" /> QR 포스터
               </Button>
               <Button size="sm" variant="outline" onClick={openEdit} aria-label="행사 수정">
                 <Pencil className="w-4 h-4 mr-1" /> 수정
@@ -340,6 +404,15 @@ const AdminEventDetail = () => {
         )}
       </div>
 
+      {/* Poster Zoom Dialog */}
+      <Dialog open={showPosterZoom} onOpenChange={setShowPosterZoom}>
+        <DialogContent className="sm:max-w-2xl p-2">
+          {event?.poster_url && (
+            <img src={event.poster_url} alt="행사 포스터" className="w-full rounded-lg" />
+          )}
+        </DialogContent>
+      </Dialog>
+
       {/* Stats Dialog */}
       <Dialog open={showStats} onOpenChange={setShowStats}>
         <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto">
@@ -407,7 +480,7 @@ const AdminEventDetail = () => {
 
       {/* Edit Dialog */}
       <Dialog open={showEdit} onOpenChange={setShowEdit}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>행사 수정</DialogTitle>
           </DialogHeader>
@@ -455,6 +528,53 @@ const AdminEventDetail = () => {
                 <option value="완료">완료</option>
               </select>
             </div>
+
+            {/* Poster upload in edit */}
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-foreground">행사 포스터</label>
+              {editPosterPreview ? (
+                <div className="relative rounded-lg overflow-hidden border border-border">
+                  <img src={editPosterPreview} alt="포스터 미리보기" className="w-full max-h-48 object-contain bg-secondary/30" />
+                  <button
+                    type="button"
+                    onClick={handleRemoveEditPoster}
+                    className="absolute top-2 right-2 w-7 h-7 rounded-full bg-background/80 backdrop-blur flex items-center justify-center hover:bg-background transition-colors"
+                    aria-label="포스터 삭제"
+                  >
+                    <X className="w-4 h-4 text-foreground" />
+                  </button>
+                </div>
+              ) : !removePosterFlag && event?.poster_url ? (
+                <div className="relative rounded-lg overflow-hidden border border-border">
+                  <img src={event.poster_url} alt="현재 포스터" className="w-full max-h-48 object-contain bg-secondary/30" />
+                  <button
+                    type="button"
+                    onClick={handleRemoveEditPoster}
+                    className="absolute top-2 right-2 w-7 h-7 rounded-full bg-background/80 backdrop-blur flex items-center justify-center hover:bg-background transition-colors"
+                    aria-label="포스터 삭제"
+                  >
+                    <X className="w-4 h-4 text-foreground" />
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => editFileInputRef.current?.click()}
+                  className="w-full h-28 border-2 border-dashed border-border rounded-lg flex flex-col items-center justify-center gap-1.5 text-muted-foreground hover:border-primary/50 hover:text-primary transition-colors"
+                >
+                  <ImagePlus className="w-6 h-6" />
+                  <span className="text-xs">클릭하여 포스터 이미지 선택</span>
+                </button>
+              )}
+              <input
+                ref={editFileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleEditPosterSelect}
+              />
+            </div>
+
             <Button type="submit" className="w-full h-11 font-semibold" disabled={saving}>
               {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : '저장'}
             </Button>

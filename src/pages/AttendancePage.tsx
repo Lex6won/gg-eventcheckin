@@ -17,6 +17,7 @@ interface EventData {
   location: string;
   organizer: string;
   status: string | null;
+  poster_url: string | null;
 }
 
 const formatPhone = (value: string) => {
@@ -303,6 +304,9 @@ const AttendancePage = () => {
       <div className="px-4 pt-5 max-w-lg mx-auto">
         {/* Event Info */}
         <div className="bg-card rounded-xl shadow-card overflow-hidden mb-5 animate-fade-in">
+          {event?.poster_url && (
+            <img src={event.poster_url} alt="행사 포스터" className="w-full max-h-56 object-contain bg-secondary/30" />
+          )}
           <div className="p-5">
             <h1 className="text-lg font-bold text-foreground leading-snug">{event?.title}</h1>
             {event?.description && (
