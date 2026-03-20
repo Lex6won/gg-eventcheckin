@@ -10,6 +10,7 @@ import AdminLogin from "./pages/AdminLogin";
 import AdminLayout from "./components/AdminLayout";
 import AdminEvents from "./pages/AdminEvents";
 import AdminEventDetail from "./pages/AdminEventDetail";
+import AdminEventAttendees from "./pages/AdminEventAttendees";
 import AdminAttendees from "./pages/AdminAttendees";
 import AdminSettings from "./pages/AdminSettings";
 import NotFound from "./pages/NotFound";
