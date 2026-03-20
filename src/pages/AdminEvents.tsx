@@ -6,10 +6,12 @@ import { Button } from '@/components/ui/button';
 import { Plus, Loader2, Calendar } from 'lucide-react';
 import EventCard from '@/components/EventCard';
 import CreateEventDialog from '@/components/CreateEventDialog';
+import { toast } from 'sonner';
 
 interface Event {
   id: string;
   title: string;
+  description: string | null;
   event_date: string;
   start_time: string;
   end_time: string;
@@ -21,6 +23,13 @@ interface Event {
 }
 
 const statusFilters = ['전체', '예정', '진행중', '완료'] as const;
+
+const generateAccessCode = () => {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let code = '';
+  for (let i = 0; i < 6; i++) code += chars.charAt(Math.floor(Math.random() * chars.length));
+  return code;
+};
 
 const AdminEvents = () => {
   const { user } = useAuth();
@@ -59,6 +68,29 @@ const AdminEvents = () => {
     if (user) fetchEvents();
   }, [user]);
 
+  const handleDuplicate = async (event: Event) => {
+    if (!user) return;
+    try {
+      const { error } = await supabase.from('events').insert({
+        title: `${event.title} (복사)`,
+        description: event.description,
+        event_date: event.event_date,
+        start_time: event.start_time,
+        end_time: event.end_time,
+        location: event.location,
+        organizer: event.organizer,
+        access_code: generateAccessCode(),
+        created_by: user.id,
+        status: '예정',
+      });
+      if (error) throw error;
+      toast.success('행사가 복제되었습니다.');
+      fetchEvents();
+    } catch {
+      toast.error('행사 복제에 실패했습니다.');
+    }
+  };
+
   const filtered = filter === '전체'
     ? events
     : events.filter((e) => (e.status || '예정') === filter);
@@ -76,21 +108,23 @@ const AdminEvents = () => {
       {/* Header */}
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold text-foreground">행사 관리</h1>
-        <Button size="sm" onClick={() => setShowCreate(true)}>
+        <Button size="sm" onClick={() => setShowCreate(true)} aria-label="새 행사 만들기">
           <Plus className="w-4 h-4 mr-1" />
           새 행사
         </Button>
       </div>
 
       {/* Status Filter */}
-      <div className="flex gap-2">
+      <div className="flex gap-2 overflow-x-auto" role="tablist" aria-label="행사 상태 필터">
         {statusFilters.map((s) => (
           <button
             key={s}
+            role="tab"
+            aria-selected={filter === s}
             onClick={() => setFilter(s)}
-            className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+            className={`px-3.5 py-1.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${
               filter === s
-                ? 'bg-primary text-primary-foreground'
+                ? 'bg-primary text-primary-foreground shadow-sm'
                 : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
             }`}
           >
@@ -120,6 +154,7 @@ const AdminEvents = () => {
               key={event.id}
               event={event}
               onClick={() => navigate(`/admin/events/${event.id}`)}
+              onDuplicate={() => handleDuplicate(event)}
             />
           ))}
         </div>
