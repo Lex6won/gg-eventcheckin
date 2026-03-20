@@ -36,6 +36,7 @@ const App = () => (
               <Route path="events" element={<AdminEvents />} />
               <Route path="events/:eventId" element={<AdminEventDetail />} />
               <Route path="events/:eventId/attendees" element={<AdminEventAttendees />} />
+              <Route path="events/:eventId/qr" element={<AdminEventQR />} />
               <Route path="attendees" element={<AdminAttendees />} />
               <Route path="settings" element={<AdminSettings />} />
             </Route>

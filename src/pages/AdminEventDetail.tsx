@@ -9,10 +9,11 @@ import {
 } from '@/components/ui/dialog';
 import {
   ArrowLeft, Printer, Users, Calendar, MapPin, Clock, Hash,
-  Loader2, Trash2, Copy, Download, Pencil, Link2, QrCode,
+  Loader2, Trash2, Copy, Download, Pencil, Link2, QrCode, Maximize2, FileImage,
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { toast } from 'sonner';
+import { downloadQRPoster, downloadQRImage } from '@/lib/qrExport';
 
 interface Attendee {
   id: string;
