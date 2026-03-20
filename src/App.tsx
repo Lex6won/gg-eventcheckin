@@ -23,6 +23,7 @@ const App = () => (
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/attend/:accessCode" element={<AttendancePage />} />
+            <Route path="/attend" element={<AttendancePage />} />
             <Route path="/admin/login" element={<AdminLogin />} />
             <Route path="/admin" element={<AdminDashboard />} />
             <Route path="/admin/events/:eventId" element={<EventDetail />} />
