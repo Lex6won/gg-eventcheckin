@@ -117,7 +117,7 @@ export async function exportToExcel(event: EventData, attendees: Attendee[]) {
     const a = attendees[idx];
     const rowNum = idx + 8;
     const row = ws.getRow(rowNum);
-    row.height = 40;
+    row.height = 50;
 
     const vals = [idx + 1, a.organization, a.position || '-', a.name, a.phone, '', formatCheckedIn(a.checked_in_at)];
     vals.forEach((v, ci) => {
