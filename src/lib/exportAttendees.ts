@@ -359,7 +359,7 @@ export async function exportAllAttendeesToPDF(attendees: AllAttendeeRow[]) {
   drawHeader();
 
   const bodyData = attendees.map((a, i) => [
-    String(i + 1), a.event_title, a.event_date, a.organization, a.name, a.position || '-', a.phone,
+    String(i + 1), a.event_title, a.event_date, a.organization, a.name, a.position || '-', a.email || '-',
     a.checked_in_at
       ? new Date(a.checked_in_at).toLocaleString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
       : '-',
