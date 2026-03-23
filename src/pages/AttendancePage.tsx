@@ -134,28 +134,14 @@ const AttendancePage = () => {
     setSubmitting(true);
 
     try {
-      // Check duplicate
+      // Check duplicate by name + organization
       const { data: existing } = await supabase
         .from('attendees')
         .select('id')
         .eq('event_id', event.id)
-        .eq('phone', form.phone)
+        .eq('name', form.name.trim())
+        .eq('organization', form.organization.trim())
         .maybeSingle();
-
-      if (!existing) {
-        const phoneDigits = form.phone.replace(/\D/g, '');
-        const { data: existing2 } = await supabase
-          .from('attendees')
-          .select('id')
-          .eq('event_id', event.id)
-          .eq('phone', phoneDigits)
-          .maybeSingle();
-        if (existing2) {
-          setAlreadyRegistered(true);
-          setSubmitting(false);
-          return;
-        }
-      }
 
       if (existing) {
         setAlreadyRegistered(true);
@@ -171,7 +157,7 @@ const AttendancePage = () => {
         organization: form.organization.trim(),
         name: form.name.trim(),
         position: form.position.trim() || null,
-        phone: form.phone,
+        email: form.email.trim() || null,
         signature_url: signatureDataUrl,
       });
 
