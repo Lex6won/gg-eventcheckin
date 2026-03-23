@@ -185,7 +185,7 @@ const EventDetail = () => {
                       <td className="px-4 py-3 text-foreground">{a.organization}</td>
                       <td className="px-4 py-3 font-medium text-foreground">{a.name}</td>
                       <td className="px-4 py-3 text-muted-foreground">{a.position || '-'}</td>
-                      <td className="px-4 py-3 tabular-nums text-muted-foreground">{a.phone}</td>
+                      <td className="px-4 py-3 text-muted-foreground">{a.email || '-'}</td>
                       <td className="px-4 py-3">
                         <img
                           src={a.signature_url}
