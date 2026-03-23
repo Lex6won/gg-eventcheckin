@@ -53,7 +53,7 @@ const AdminAttendees = () => {
         a.name.includes(search) ||
         a.organization.includes(search) ||
         a.event_title.includes(search) ||
-        a.phone.includes(search)
+        (a.email && a.email.includes(search))
       )
     : attendees;
 
