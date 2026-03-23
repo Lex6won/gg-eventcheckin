@@ -111,9 +111,6 @@ const AttendancePage = () => {
     const newErrors: Record<string, string> = {};
     if (!form.organization.trim()) newErrors.organization = '소속을 입력해주세요.';
     if (!form.name.trim()) newErrors.name = '이름을 입력해주세요.';
-    if (form.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) {
-      newErrors.email = '올바른 이메일 주소를 입력해주세요.';
-    }
     if (!sigCanvas.current || sigCanvas.current.isEmpty()) {
       newErrors.signature = '서명을 해주세요.';
     }
