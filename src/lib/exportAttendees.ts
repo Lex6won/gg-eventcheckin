@@ -367,7 +367,7 @@ export async function exportAllAttendeesToPDF(attendees: AllAttendeeRow[]) {
 
   autoTable(doc, {
     startY: 26,
-    head: [['번호', '행사', '날짜', '소속', '성명', '직급', '연락처', '등록시간']],
+    head: [['번호', '행사', '날짜', '소속', '성명', '직급', '이메일', '등록시간']],
     body: bodyData,
     styles: { font: 'NotoSansKR', fontSize: 9, cellPadding: 3, valign: 'middle', halign: 'center' },
     headStyles: { fillColor: [229, 231, 235], textColor: [31, 41, 55], fontStyle: 'normal' },
