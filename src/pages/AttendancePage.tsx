@@ -229,7 +229,7 @@ const AttendancePage = () => {
           </div>
           <h2 className="text-xl font-bold text-foreground">이미 등록되었습니다</h2>
           <p className="text-muted-foreground text-sm leading-relaxed">
-            동일한 연락처로 이미 참석 등록이 완료되었습니다.<br />
+            동일한 이름과 소속으로 이미 참석 등록이 완료되었습니다.<br />
             문의사항은 행사 담당자에게 연락해주세요.
           </p>
         </div>
