@@ -27,7 +27,8 @@ interface Attendee {
   organization: string;
   position: string | null;
   name: string;
-  phone: string;
+  phone: string | null;
+  email: string | null;
   signature_url: string;
   checked_in_at: string | null;
 }
@@ -407,7 +408,7 @@ const AdminEventDetail = () => {
                   <th className="px-4 py-3 text-left font-medium">소속</th>
                   <th className="px-4 py-3 text-left font-medium">성명</th>
                   <th className="px-4 py-3 text-left font-medium">직급</th>
-                  <th className="px-4 py-3 text-left font-medium">연락처</th>
+                  <th className="px-4 py-3 text-left font-medium">이메일</th>
                   <th className="px-4 py-3 text-left font-medium">서명</th>
                   <th className="px-4 py-3 text-left font-medium">등록시간</th>
                 </tr>
@@ -419,7 +420,7 @@ const AdminEventDetail = () => {
                     <td className="px-4 py-3 text-foreground">{a.organization}</td>
                     <td className="px-4 py-3 font-medium text-foreground">{a.name}</td>
                     <td className="px-4 py-3 text-muted-foreground">{a.position || '-'}</td>
-                    <td className="px-4 py-3 tabular-nums text-muted-foreground">{a.phone}</td>
+                    <td className="px-4 py-3 text-muted-foreground">{a.email || '-'}</td>
                     <td className="px-4 py-3">
                       <img src={a.signature_url} alt={`${a.name} 서명`} className="h-8 w-auto" />
                     </td>

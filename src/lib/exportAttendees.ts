@@ -8,7 +8,8 @@ interface Attendee {
   organization: string;
   position: string | null;
   name: string;
-  phone: string;
+  phone: string | null;
+  email: string | null;
   signature_url: string;
   checked_in_at: string | null;
 }
@@ -27,7 +28,8 @@ interface AllAttendeeRow {
   organization: string;
   position: string | null;
   name: string;
-  phone: string;
+  phone: string | null;
+  email: string | null;
   checked_in_at: string | null;
   event_title: string;
   event_date: string;
@@ -103,7 +105,7 @@ export async function exportToExcel(event: EventData, attendees: Attendee[]) {
     row.getCell(2).font = { size: 10 };
   });
 
-  const headers = ['번호', '소속', '직책/직급', '이름', '연락처', '서명', '등록시각'];
+  const headers = ['번호', '소속', '직책/직급', '이름', '이메일', '서명', '등록시각'];
   const headerRow = ws.getRow(7);
   headers.forEach((h, i) => {
     const cell = headerRow.getCell(i + 1);
@@ -122,7 +124,7 @@ export async function exportToExcel(event: EventData, attendees: Attendee[]) {
     const rowHeight = 55;
     row.height = rowHeight;
 
-    const vals = [idx + 1, a.organization, a.position || '-', a.name, a.phone, '', formatCheckedIn(a.checked_in_at)];
+    const vals = [idx + 1, a.organization, a.position || '-', a.name, a.email || '-', '', formatCheckedIn(a.checked_in_at)];
     vals.forEach((v, ci) => {
       const cell = row.getCell(ci + 1);
       cell.value = v;
@@ -215,12 +217,12 @@ export async function exportToPDF(event: EventData, attendees: Attendee[]) {
   drawHeader();
 
   const bodyData = attendees.map((a, i) => [
-    String(i + 1), a.organization, a.position || '-', a.name, a.phone, '', formatCheckedIn(a.checked_in_at),
+    String(i + 1), a.organization, a.position || '-', a.name, a.email || '-', '', formatCheckedIn(a.checked_in_at),
   ]);
 
   autoTable(doc, {
     startY: 56,
-    head: [['번호', '소속', '직책/직급', '이름', '연락처', '서명', '등록시각']],
+    head: [['번호', '소속', '직책/직급', '이름', '이메일', '서명', '등록시각']],
     body: bodyData,
     styles: { font: 'NotoSansKR', fontSize: 9, cellPadding: 3, valign: 'middle', halign: 'center', minCellHeight: 14 },
     headStyles: { fillColor: [229, 231, 235], textColor: [31, 41, 55], fontStyle: 'normal', minCellHeight: 10 },
@@ -297,7 +299,7 @@ export async function exportAllAttendeesToExcel(attendees: AllAttendeeRow[]) {
   ws.getCell('A2').font = { size: 10 };
   ws.getCell('A2').alignment = { horizontal: 'right' };
 
-  const headers = ['번호', '행사', '날짜', '소속', '성명', '직급', '연락처', '등록시간'];
+  const headers = ['번호', '행사', '날짜', '소속', '성명', '직급', '이메일', '등록시간'];
   const headerRow = ws.getRow(4);
   headers.forEach((h, i) => {
     const cell = headerRow.getCell(i + 1);
@@ -313,7 +315,7 @@ export async function exportAllAttendeesToExcel(attendees: AllAttendeeRow[]) {
     const row = ws.getRow(idx + 5);
     const vals = [
       idx + 1, a.event_title, a.event_date, a.organization,
-      a.name, a.position || '-', a.phone,
+      a.name, a.position || '-', a.email || '-',
       a.checked_in_at
         ? new Date(a.checked_in_at).toLocaleString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
         : '-',
@@ -357,7 +359,7 @@ export async function exportAllAttendeesToPDF(attendees: AllAttendeeRow[]) {
   drawHeader();
 
   const bodyData = attendees.map((a, i) => [
-    String(i + 1), a.event_title, a.event_date, a.organization, a.name, a.position || '-', a.phone,
+    String(i + 1), a.event_title, a.event_date, a.organization, a.name, a.position || '-', a.email || '-',
     a.checked_in_at
       ? new Date(a.checked_in_at).toLocaleString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
       : '-',
@@ -365,7 +367,7 @@ export async function exportAllAttendeesToPDF(attendees: AllAttendeeRow[]) {
 
   autoTable(doc, {
     startY: 26,
-    head: [['번호', '행사', '날짜', '소속', '성명', '직급', '연락처', '등록시간']],
+    head: [['번호', '행사', '날짜', '소속', '성명', '직급', '이메일', '등록시간']],
     body: bodyData,
     styles: { font: 'NotoSansKR', fontSize: 9, cellPadding: 3, valign: 'middle', halign: 'center' },
     headStyles: { fillColor: [229, 231, 235], textColor: [31, 41, 55], fontStyle: 'normal' },

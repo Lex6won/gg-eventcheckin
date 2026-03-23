@@ -25,7 +25,8 @@ interface Attendee {
   organization: string;
   position: string | null;
   name: string;
-  phone: string;
+  phone: string | null;
+  email: string | null;
   signature_url: string;
   checked_in_at: string | null;
 }
@@ -161,7 +162,7 @@ const AdminEventAttendees = () => {
         (a) =>
           a.name.includes(search) ||
           a.organization.includes(search) ||
-          a.phone.includes(search)
+          (a.email && a.email.includes(search))
       )
     : attendees;
 
@@ -299,7 +300,7 @@ const AdminEventAttendees = () => {
                 </AlertDialog>
               </div>
               <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground tabular-nums">{a.phone}</span>
+                <span className="text-muted-foreground">{a.email || '-'}</span>
                 <span className="text-xs text-muted-foreground tabular-nums">
                   {a.checked_in_at
                     ? new Date(a.checked_in_at).toLocaleString('ko-KR', {
@@ -335,7 +336,7 @@ const AdminEventAttendees = () => {
                   <th className="px-4 py-3 text-left font-medium">소속</th>
                   <th className="px-4 py-3 text-left font-medium">직급</th>
                   <th className="px-4 py-3 text-left font-medium">성명</th>
-                  <th className="px-4 py-3 text-left font-medium">연락처</th>
+                  <th className="px-4 py-3 text-left font-medium">이메일</th>
                   <th className="px-4 py-3 text-left font-medium">서명</th>
                   <th className="px-4 py-3 text-left font-medium">등록시각</th>
                   <th className="px-4 py-3 text-left font-medium w-12"></th>
@@ -351,7 +352,7 @@ const AdminEventAttendees = () => {
                     <td className="px-4 py-3 text-foreground">{a.organization}</td>
                     <td className="px-4 py-3 text-muted-foreground">{a.position || '-'}</td>
                     <td className="px-4 py-3 font-medium text-foreground">{a.name}</td>
-                    <td className="px-4 py-3 tabular-nums text-muted-foreground">{a.phone}</td>
+                    <td className="px-4 py-3 text-muted-foreground">{a.email || '-'}</td>
                     <td className="px-4 py-3">
                       {a.signature_url ? (
                         <button onClick={() => setSignaturePreview(a.signature_url)}>

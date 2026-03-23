@@ -21,12 +21,6 @@ interface EventData {
   poster_url: string | null;
 }
 
-const formatPhone = (value: string) => {
-  const digits = value.replace(/\D/g, '').slice(0, 11);
-  if (digits.length <= 3) return digits;
-  if (digits.length <= 7) return `${digits.slice(0, 3)}-${digits.slice(3)}`;
-  return `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7)}`;
-};
 
 const AttendancePage = () => {
   const { accessCode } = useParams<{ accessCode: string }>();
@@ -49,7 +43,7 @@ const AttendancePage = () => {
     organization: '',
     name: '',
     position: '',
-    phone: '',
+    email: '',
   });
 
   const resizeCanvas = useCallback(() => {
@@ -108,10 +102,6 @@ const AttendancePage = () => {
     return () => window.removeEventListener('resize', resizeCanvas);
   }, [loading, event, expired, resizeCanvas]);
 
-  const handlePhoneChange = (value: string) => {
-    setForm({ ...form, phone: formatPhone(value) });
-    if (errors.phone) setErrors({ ...errors, phone: '' });
-  };
 
   const updateField = (key: string, value: string) => {
     setForm({ ...form, [key]: value });
@@ -122,10 +112,8 @@ const AttendancePage = () => {
     const newErrors: Record<string, string> = {};
     if (!form.organization.trim()) newErrors.organization = '소속을 입력해주세요.';
     if (!form.name.trim()) newErrors.name = '이름을 입력해주세요.';
-    if (!form.phone.trim()) {
-      newErrors.phone = '연락처를 입력해주세요.';
-    } else if (form.phone.replace(/\D/g, '').length < 10) {
-      newErrors.phone = '올바른 연락처를 입력해주세요.';
+    if (form.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) {
+      newErrors.email = '올바른 이메일 주소를 입력해주세요.';
     }
     if (!sigCanvas.current || sigCanvas.current.isEmpty()) {
       newErrors.signature = '서명을 해주세요.';
@@ -146,28 +134,14 @@ const AttendancePage = () => {
     setSubmitting(true);
 
     try {
-      // Check duplicate
+      // Check duplicate by name + organization
       const { data: existing } = await supabase
         .from('attendees')
         .select('id')
         .eq('event_id', event.id)
-        .eq('phone', form.phone)
+        .eq('name', form.name.trim())
+        .eq('organization', form.organization.trim())
         .maybeSingle();
-
-      if (!existing) {
-        const phoneDigits = form.phone.replace(/\D/g, '');
-        const { data: existing2 } = await supabase
-          .from('attendees')
-          .select('id')
-          .eq('event_id', event.id)
-          .eq('phone', phoneDigits)
-          .maybeSingle();
-        if (existing2) {
-          setAlreadyRegistered(true);
-          setSubmitting(false);
-          return;
-        }
-      }
 
       if (existing) {
         setAlreadyRegistered(true);
@@ -183,7 +157,7 @@ const AttendancePage = () => {
         organization: form.organization.trim(),
         name: form.name.trim(),
         position: form.position.trim() || null,
-        phone: form.phone,
+        email: form.email.trim() || null,
         signature_url: signatureDataUrl,
       });
 
@@ -255,7 +229,7 @@ const AttendancePage = () => {
           </div>
           <h2 className="text-xl font-bold text-foreground">이미 등록되었습니다</h2>
           <p className="text-muted-foreground text-sm leading-relaxed">
-            동일한 연락처로 이미 참석 등록이 완료되었습니다.<br />
+            동일한 이름과 소속으로 이미 참석 등록이 완료되었습니다.<br />
             문의사항은 행사 담당자에게 연락해주세요.
           </p>
         </div>
@@ -378,20 +352,20 @@ const AttendancePage = () => {
             </div>
 
             <div className="space-y-1.5">
-              <label htmlFor="phone" className="text-sm font-semibold text-foreground">
-                연락처 <span className="text-destructive">*</span>
+              <label htmlFor="email" className="text-sm font-semibold text-foreground">
+                이메일
               </label>
               <Input
-                id="phone"
-                type="tel"
-                value={form.phone}
-                onChange={(e) => handlePhoneChange(e.target.value)}
-                placeholder="010-0000-0000"
-                className={`h-12 bg-secondary/50 border-border/60 ${errors.phone ? 'border-destructive' : ''}`}
-                aria-invalid={!!errors.phone}
-                aria-describedby={errors.phone ? 'phone-error' : undefined}
+                id="email"
+                type="email"
+                value={form.email}
+                onChange={(e) => updateField('email', e.target.value)}
+                placeholder="example@email.com"
+                className={`h-12 bg-secondary/50 border-border/60 ${errors.email ? 'border-destructive' : ''}`}
+                aria-invalid={!!errors.email}
+                aria-describedby={errors.email ? 'email-error' : undefined}
               />
-              {errors.phone && <p id="phone-error" className="text-xs text-destructive">{errors.phone}</p>}
+              {errors.email && <p id="email-error" className="text-xs text-destructive">{errors.email}</p>}
             </div>
           </div>
 
