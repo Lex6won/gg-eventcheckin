@@ -315,7 +315,7 @@ export async function exportAllAttendeesToExcel(attendees: AllAttendeeRow[]) {
     const row = ws.getRow(idx + 5);
     const vals = [
       idx + 1, a.event_title, a.event_date, a.organization,
-      a.name, a.position || '-', a.phone,
+      a.name, a.position || '-', a.email || '-',
       a.checked_in_at
         ? new Date(a.checked_in_at).toLocaleString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
         : '-',
