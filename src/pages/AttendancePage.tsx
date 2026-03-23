@@ -102,10 +102,6 @@ const AttendancePage = () => {
     return () => window.removeEventListener('resize', resizeCanvas);
   }, [loading, event, expired, resizeCanvas]);
 
-  const handlePhoneChange = (value: string) => {
-    setForm({ ...form, phone: formatPhone(value) });
-    if (errors.phone) setErrors({ ...errors, phone: '' });
-  };
 
   const updateField = (key: string, value: string) => {
     setForm({ ...form, [key]: value });
