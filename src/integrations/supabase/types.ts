@@ -18,33 +18,36 @@ export type Database = {
         Row: {
           checked_in_at: string | null
           created_at: string | null
+          email: string | null
           event_id: string
           id: string
           name: string
           organization: string
-          phone: string
+          phone: string | null
           position: string | null
           signature_url: string
         }
         Insert: {
           checked_in_at?: string | null
           created_at?: string | null
+          email?: string | null
           event_id: string
           id?: string
           name: string
           organization: string
-          phone: string
+          phone?: string | null
           position?: string | null
           signature_url: string
         }
         Update: {
           checked_in_at?: string | null
           created_at?: string | null
+          email?: string | null
           event_id?: string
           id?: string
           name?: string
           organization?: string
-          phone?: string
+          phone?: string | null
           position?: string | null
           signature_url?: string
         }
