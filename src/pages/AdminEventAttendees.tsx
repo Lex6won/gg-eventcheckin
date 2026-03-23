@@ -162,7 +162,7 @@ const AdminEventAttendees = () => {
         (a) =>
           a.name.includes(search) ||
           a.organization.includes(search) ||
-          a.phone.includes(search)
+          (a.email && a.email.includes(search))
       )
     : attendees;
 
