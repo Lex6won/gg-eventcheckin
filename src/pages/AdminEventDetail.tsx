@@ -27,7 +27,8 @@ interface Attendee {
   organization: string;
   position: string | null;
   name: string;
-  phone: string;
+  phone: string | null;
+  email: string | null;
   signature_url: string;
   checked_in_at: string | null;
 }
