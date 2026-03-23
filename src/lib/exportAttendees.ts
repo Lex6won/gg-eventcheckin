@@ -217,7 +217,7 @@ export async function exportToPDF(event: EventData, attendees: Attendee[]) {
   drawHeader();
 
   const bodyData = attendees.map((a, i) => [
-    String(i + 1), a.organization, a.position || '-', a.name, a.phone, '', formatCheckedIn(a.checked_in_at),
+    String(i + 1), a.organization, a.position || '-', a.name, a.email || '-', '', formatCheckedIn(a.checked_in_at),
   ]);
 
   autoTable(doc, {
