@@ -43,7 +43,6 @@ const AttendancePage = () => {
     organization: '',
     name: '',
     position: '',
-    email: '',
   });
 
   const resizeCanvas = useCallback(() => {
@@ -112,9 +111,6 @@ const AttendancePage = () => {
     const newErrors: Record<string, string> = {};
     if (!form.organization.trim()) newErrors.organization = '소속을 입력해주세요.';
     if (!form.name.trim()) newErrors.name = '이름을 입력해주세요.';
-    if (form.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) {
-      newErrors.email = '올바른 이메일 주소를 입력해주세요.';
-    }
     if (!sigCanvas.current || sigCanvas.current.isEmpty()) {
       newErrors.signature = '서명을 해주세요.';
     }
@@ -157,7 +153,7 @@ const AttendancePage = () => {
         organization: form.organization.trim(),
         name: form.name.trim(),
         position: form.position.trim() || null,
-        email: form.email.trim() || null,
+        
         signature_url: signatureDataUrl,
       });
 
@@ -351,22 +347,6 @@ const AttendancePage = () => {
               {errors.name && <p id="name-error" className="text-xs text-destructive">{errors.name}</p>}
             </div>
 
-            <div className="space-y-1.5">
-              <label htmlFor="email" className="text-sm font-semibold text-foreground">
-                이메일
-              </label>
-              <Input
-                id="email"
-                type="email"
-                value={form.email}
-                onChange={(e) => updateField('email', e.target.value)}
-                placeholder="example@email.com"
-                className={`h-12 bg-secondary/50 border-border/60 ${errors.email ? 'border-destructive' : ''}`}
-                aria-invalid={!!errors.email}
-                aria-describedby={errors.email ? 'email-error' : undefined}
-              />
-              {errors.email && <p id="email-error" className="text-xs text-destructive">{errors.email}</p>}
-            </div>
           </div>
 
           {/* Signature */}
