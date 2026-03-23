@@ -43,7 +43,7 @@ const AttendancePage = () => {
     organization: '',
     name: '',
     position: '',
-    phone: '',
+    email: '',
   });
 
   const resizeCanvas = useCallback(() => {
