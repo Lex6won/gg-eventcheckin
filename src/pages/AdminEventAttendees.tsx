@@ -336,7 +336,7 @@ const AdminEventAttendees = () => {
                   <th className="px-4 py-3 text-left font-medium">소속</th>
                   <th className="px-4 py-3 text-left font-medium">직급</th>
                   <th className="px-4 py-3 text-left font-medium">성명</th>
-                  <th className="px-4 py-3 text-left font-medium">연락처</th>
+                  <th className="px-4 py-3 text-left font-medium">이메일</th>
                   <th className="px-4 py-3 text-left font-medium">서명</th>
                   <th className="px-4 py-3 text-left font-medium">등록시각</th>
                   <th className="px-4 py-3 text-left font-medium w-12"></th>
