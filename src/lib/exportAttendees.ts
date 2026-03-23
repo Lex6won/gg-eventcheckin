@@ -299,7 +299,7 @@ export async function exportAllAttendeesToExcel(attendees: AllAttendeeRow[]) {
   ws.getCell('A2').font = { size: 10 };
   ws.getCell('A2').alignment = { horizontal: 'right' };
 
-  const headers = ['번호', '행사', '날짜', '소속', '성명', '직급', '연락처', '등록시간'];
+  const headers = ['번호', '행사', '날짜', '소속', '성명', '직급', '이메일', '등록시간'];
   const headerRow = ws.getRow(4);
   headers.forEach((h, i) => {
     const cell = headerRow.getCell(i + 1);
