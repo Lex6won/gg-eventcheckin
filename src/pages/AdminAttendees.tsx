@@ -12,7 +12,8 @@ interface AttendeeRow {
   organization: string;
   position: string | null;
   name: string;
-  phone: string;
+  phone: string | null;
+  email: string | null;
   checked_in_at: string | null;
   event_title: string;
   event_date: string;
