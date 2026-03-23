@@ -153,7 +153,7 @@ const AttendancePage = () => {
         organization: form.organization.trim(),
         name: form.name.trim(),
         position: form.position.trim() || null,
-        email: form.email.trim() || null,
+        
         signature_url: signatureDataUrl,
       });
 
