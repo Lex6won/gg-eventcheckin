@@ -352,20 +352,20 @@ const AttendancePage = () => {
             </div>
 
             <div className="space-y-1.5">
-              <label htmlFor="phone" className="text-sm font-semibold text-foreground">
-                연락처 <span className="text-destructive">*</span>
+              <label htmlFor="email" className="text-sm font-semibold text-foreground">
+                이메일
               </label>
               <Input
-                id="phone"
-                type="tel"
-                value={form.phone}
-                onChange={(e) => handlePhoneChange(e.target.value)}
-                placeholder="010-0000-0000"
-                className={`h-12 bg-secondary/50 border-border/60 ${errors.phone ? 'border-destructive' : ''}`}
-                aria-invalid={!!errors.phone}
-                aria-describedby={errors.phone ? 'phone-error' : undefined}
+                id="email"
+                type="email"
+                value={form.email}
+                onChange={(e) => updateField('email', e.target.value)}
+                placeholder="example@email.com"
+                className={`h-12 bg-secondary/50 border-border/60 ${errors.email ? 'border-destructive' : ''}`}
+                aria-invalid={!!errors.email}
+                aria-describedby={errors.email ? 'email-error' : undefined}
               />
-              {errors.phone && <p id="phone-error" className="text-xs text-destructive">{errors.phone}</p>}
+              {errors.email && <p id="email-error" className="text-xs text-destructive">{errors.email}</p>}
             </div>
           </div>
 
