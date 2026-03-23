@@ -300,7 +300,7 @@ const AdminEventAttendees = () => {
                 </AlertDialog>
               </div>
               <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground tabular-nums">{a.phone}</span>
+                <span className="text-muted-foreground">{a.email || '-'}</span>
                 <span className="text-xs text-muted-foreground tabular-nums">
                   {a.checked_in_at
                     ? new Date(a.checked_in_at).toLocaleString('ko-KR', {
