@@ -1,37 +1,36 @@
 
 
-## 행사 포스터 업로드 기능 추가 및 폼 일관성 개선
+## Plan: 연락처(phone) → 이메일(email, 선택사항) 변경
 
-### 문제점
-- 포스터 이미지를 업로드/표시하는 기능이 전혀 없음 (DB 컬럼, 스토리지 버킷, UI 모두 부재)
-- 세부 내용의 "포스터" 버튼은 QR 포스터 PDF 다운로드 기능으로, 이름이 혼동을 줄 수 있음
+### 변경 요약
+현재 필수 입력인 **연락처(phone)** 필드를 제거하고, **이메일(email)** 필드를 비필수(선택) 사항으로 추가합니다.
 
-### 구현 계획
+### 주의사항
+현재 **중복 등록 방지**가 연락처(phone) 기준으로 동작합니다. 연락처를 제거하면 중복 체크 기준이 사라지므로, **이름(name) + 소속(organization)** 조합으로 중복 판단하도록 변경합니다.
 
-**1. DB 마이그레이션**
-- `events` 테이블에 `poster_url` (text, nullable) 컬럼 추가
-- Storage 버킷 `event-posters` 생성 (public)
-- 버킷 RLS: 누구나 조회 가능, 인증된 사용자만 업로드/삭제
+---
 
-**2. 행사 생성 다이얼로그 (CreateEventDialog.tsx)**
-- 포스터 이미지 업로드 필드 추가 (파일 선택 + 미리보기)
-- 업로드 시 Storage에 저장 후 `poster_url`을 events 테이블에 기록
+### 변경 단계
 
-**3. 행사 수정 다이얼로그 (AdminEventDetail.tsx 내 Edit Dialog)**
-- 동일한 포스터 업로드/변경 필드 추가
-- 기존 포스터가 있으면 미리보기 표시 + 삭제/변경 가능
+**1. 데이터베이스 마이그레이션**
+- `attendees` 테이블에 `email text` 컬럼 추가 (nullable)
+- `phone` 컬럼을 nullable로 변경 (기존 데이터 보존)
 
-**4. 행사 세부 내용 표시 (AdminEventDetail.tsx)**
-- 포스터 이미지가 있으면 행사 정보 카드에 썸네일 표시
-- 클릭 시 원본 이미지 확대 보기
-- 기존 "포스터" 버튼 → "QR 포스터" 로 라벨 변경하여 혼동 방지
+**2. 참석 등록 폼 수정 (`AttendancePage.tsx`)**
+- 연락처 입력 필드 제거, 이메일 입력 필드 추가 (선택사항, `*` 표시 없음)
+- `formatPhone` 헬퍼 및 관련 핸들러 제거
+- form state에서 `phone` → `email` 변경
+- 유효성 검사에서 phone 필수 체크 제거, email은 입력 시 형식만 검증
+- 중복 체크: phone 기준 → name + organization 기준으로 변경
+- DB insert 시 `phone` 대신 `email` 전달
 
-**5. 참석 등록 페이지 (AttendancePage.tsx)**
-- 행사 포스터가 있으면 상단에 표시하여 참석자가 행사를 시각적으로 확인 가능
+**3. 관리자 참석자 목록 페이지 수정**
+- `AdminEventAttendees.tsx`, `AdminAttendees.tsx`, `AdminEventDetail.tsx`, `EventDetail.tsx`: 테이블 컬럼에서 연락처 → 이메일로 변경, 검색 대상도 email로 변경
 
-### 파일 변경 목록
-- `supabase/migrations/` — 새 마이그레이션 (poster_url 컬럼 + storage 버킷)
-- `src/components/CreateEventDialog.tsx` — 포스터 업로드 필드 추가
-- `src/pages/AdminEventDetail.tsx` — 포스터 표시 + 수정 폼에 업로드 추가 + "QR 포스터" 라벨 변경
-- `src/pages/AttendancePage.tsx` — 포스터 이미지 표시
+**4. 엑셀/PDF 내보내기 수정 (`exportAttendees.ts`)**
+- 헤더 및 데이터에서 연락처 → 이메일로 변경
+
+**5. 타입 정의**
+- 각 파일의 인터페이스에서 `phone` → `email` (optional) 변경
+- `types.ts`는 마이그레이션 후 자동 갱신
 
