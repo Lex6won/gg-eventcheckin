@@ -347,22 +347,6 @@ const AttendancePage = () => {
               {errors.name && <p id="name-error" className="text-xs text-destructive">{errors.name}</p>}
             </div>
 
-            <div className="space-y-1.5">
-              <label htmlFor="email" className="text-sm font-semibold text-foreground">
-                이메일
-              </label>
-              <Input
-                id="email"
-                type="email"
-                value={form.email}
-                onChange={(e) => updateField('email', e.target.value)}
-                placeholder="example@email.com"
-                className={`h-12 bg-secondary/50 border-border/60 ${errors.email ? 'border-destructive' : ''}`}
-                aria-invalid={!!errors.email}
-                aria-describedby={errors.email ? 'email-error' : undefined}
-              />
-              {errors.email && <p id="email-error" className="text-xs text-destructive">{errors.email}</p>}
-            </div>
           </div>
 
           {/* Signature */}
