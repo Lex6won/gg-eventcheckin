@@ -222,7 +222,7 @@ export async function exportToPDF(event: EventData, attendees: Attendee[]) {
 
   autoTable(doc, {
     startY: 56,
-    head: [['번호', '소속', '직책/직급', '이름', '연락처', '서명', '등록시각']],
+    head: [['번호', '소속', '직책/직급', '이름', '이메일', '서명', '등록시각']],
     body: bodyData,
     styles: { font: 'NotoSansKR', fontSize: 9, cellPadding: 3, valign: 'middle', halign: 'center', minCellHeight: 14 },
     headStyles: { fillColor: [229, 231, 235], textColor: [31, 41, 55], fontStyle: 'normal', minCellHeight: 10 },
