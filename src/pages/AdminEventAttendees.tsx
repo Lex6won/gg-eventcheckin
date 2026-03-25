@@ -279,7 +279,13 @@ const AdminEventAttendees = () => {
                       <span className="text-xs text-muted-foreground">{a.position}</span>
                     )}
                   </div>
-                  <p className="text-sm text-muted-foreground mt-0.5">{a.organization}</p>
+                  <p className="text-sm text-muted-foreground mt-0.5">
+                    {a.org_type && <span className="text-xs bg-secondary px-1.5 py-0.5 rounded mr-1">{a.org_type}</span>}
+                    {a.organization} {a.department && `· ${a.department}`}
+                  </p>
+                  {a.car_number && (
+                    <p className="text-xs text-muted-foreground mt-0.5">🚗 {a.car_number}</p>
+                  )}
                 </div>
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
