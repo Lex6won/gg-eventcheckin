@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Clock } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { ScrollArea } from '@/components/ui/scroll-area';
+
 
 interface TimePickerProps {
   value: string;
@@ -137,8 +137,8 @@ const TimePicker = ({ value, onChange, placeholder = '시간 선택' }: TimePick
             {/* Hours */}
             <div className="flex-1 flex flex-col">
               <p className="text-[10px] text-muted-foreground text-center py-1 border-b border-border">시</p>
-              <ScrollArea className="flex-1">
-                <div ref={hourRef} className="py-1">
+              <div className="flex-1 overflow-y-auto" ref={hourRef}>
+                <div className="py-1">
                   {hours12.map((h) => (
                     <button
                       key={h}
@@ -156,14 +156,14 @@ const TimePicker = ({ value, onChange, placeholder = '시간 선택' }: TimePick
                     </button>
                   ))}
                 </div>
-              </ScrollArea>
+              </div>
             </div>
 
             {/* Minutes */}
             <div className="flex-1 flex flex-col">
               <p className="text-[10px] text-muted-foreground text-center py-1 border-b border-border">분</p>
-              <ScrollArea className="flex-1">
-                <div ref={minuteRef} className="py-1">
+              <div className="flex-1 overflow-y-auto" ref={minuteRef}>
+                <div className="py-1">
                   {minutes.map((m) => (
                     <button
                       key={m}
@@ -181,7 +181,7 @@ const TimePicker = ({ value, onChange, placeholder = '시간 선택' }: TimePick
                     </button>
                   ))}
                 </div>
-              </ScrollArea>
+              </div>
             </div>
           </div>
         </div>
