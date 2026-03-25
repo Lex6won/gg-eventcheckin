@@ -89,6 +89,7 @@ export type Database = {
           organizer: string
           poster_url: string | null
           qr_code_url: string | null
+          show_car_number: boolean
           start_time: string
           status: string | null
           title: string
@@ -106,6 +107,7 @@ export type Database = {
           organizer: string
           poster_url?: string | null
           qr_code_url?: string | null
+          show_car_number?: boolean
           start_time: string
           status?: string | null
           title: string
@@ -123,6 +125,7 @@ export type Database = {
           organizer?: string
           poster_url?: string | null
           qr_code_url?: string | null
+          show_car_number?: boolean
           start_time?: string
           status?: string | null
           title?: string

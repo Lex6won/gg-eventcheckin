@@ -1,0 +1,1 @@
+ALTER TABLE public.events ADD COLUMN IF NOT EXISTS show_car_number boolean NOT NULL DEFAULT false;
