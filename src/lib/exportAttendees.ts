@@ -226,23 +226,30 @@ export async function exportToPDF(event: EventData, attendees: Attendee[], opts:
 
   drawHeader();
 
-  const bodyData = attendees.map((a, i) => [
-    String(i + 1), a.org_type || '-', a.organization, a.department || '-',
-    a.position || '-', a.name, a.car_number || '-', '', formatCheckedIn(a.checked_in_at),
-  ]);
+  const sigColIdx = showCar ? 7 : 6;
+
+  const bodyData = attendees.map((a, i) => showCar
+    ? [String(i + 1), a.org_type || '-', a.organization, a.department || '-', a.position || '-', a.name, a.car_number || '-', '', formatCheckedIn(a.checked_in_at)]
+    : [String(i + 1), a.org_type || '-', a.organization, a.department || '-', a.position || '-', a.name, '', formatCheckedIn(a.checked_in_at)]
+  );
+
+  const pdfHeaders = showCar
+    ? [['번호', '구분', '기관명', '부서', '직급', '성명', '차량번호', '서명', '등록시각']]
+    : [['번호', '구분', '기관명', '부서', '직급', '성명', '서명', '등록시각']];
+
+  const pdfColStyles = showCar
+    ? { 0: { cellWidth: 10 }, 1: { cellWidth: 16 }, 2: { cellWidth: 30 }, 3: { cellWidth: 28 }, 4: { cellWidth: 18 }, 5: { cellWidth: 20 }, 6: { cellWidth: 24 }, 7: { cellWidth: 36 }, 8: { cellWidth: 22 } }
+    : { 0: { cellWidth: 10 }, 1: { cellWidth: 18 }, 2: { cellWidth: 36 }, 3: { cellWidth: 32 }, 4: { cellWidth: 20 }, 5: { cellWidth: 22 }, 6: { cellWidth: 40 }, 7: { cellWidth: 26 } };
 
   autoTable(doc, {
     startY: 56,
-    head: [['번호', '구분', '기관명', '부서', '직급', '성명', '차량번호', '서명', '등록시각']],
+    head: pdfHeaders,
     body: bodyData,
     styles: { font: 'NotoSansKR', fontSize: 9, cellPadding: 3, valign: 'middle', halign: 'center', minCellHeight: 14 },
     headStyles: { fillColor: [229, 231, 235], textColor: [31, 41, 55], fontStyle: 'normal', minCellHeight: 10 },
-    columnStyles: {
-      0: { cellWidth: 10 }, 1: { cellWidth: 16 }, 2: { cellWidth: 30 }, 3: { cellWidth: 28 },
-      4: { cellWidth: 18 }, 5: { cellWidth: 20 }, 6: { cellWidth: 24 }, 7: { cellWidth: 36 }, 8: { cellWidth: 22 },
-    },
+    columnStyles: pdfColStyles as any,
     didDrawCell: (data) => {
-      if (data.section === 'body' && data.column.index === 7) {
+      if (data.section === 'body' && data.column.index === sigColIdx) {
         const sig = sigImages[data.row.index];
         if (sig) {
           try {
