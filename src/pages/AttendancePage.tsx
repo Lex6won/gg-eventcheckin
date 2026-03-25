@@ -21,6 +21,7 @@ interface EventData {
   organizer: string;
   status: string | null;
   poster_url: string | null;
+  show_car_number: boolean;
 }
 
 const ORG_TYPES = ['경기도', '시군', '공공기관'] as const;
