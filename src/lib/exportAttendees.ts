@@ -40,6 +40,10 @@ interface AllAttendeeRow {
   event_date: string;
 }
 
+interface ExportOptions {
+  showCarNumber?: boolean;
+}
+
 const formatTime = (t: string) => t?.slice(0, 5) || '';
 const formatCheckedIn = (d: string | null) =>
   d ? new Date(d).toLocaleString('ko-KR', { hour: '2-digit', minute: '2-digit' }) : '-';
