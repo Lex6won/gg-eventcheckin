@@ -152,6 +152,7 @@ const AdminEventDetail = () => {
       location: event.location,
       organizer: event.organizer,
       status: event.status,
+      show_car_number: event.show_car_number,
     });
     setEditPosterFile(null);
     setEditPosterPreview(null);
