@@ -24,10 +24,14 @@ import {
 
 interface Attendee {
   id: string;
+  org_type: string | null;
   organization: string;
+  department: string | null;
   position: string | null;
   name: string;
   phone: string | null;
+  car_number: string | null;
+  inquiry: string | null;
   
   signature_url: string;
   checked_in_at: string | null;
