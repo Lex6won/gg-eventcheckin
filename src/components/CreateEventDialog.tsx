@@ -1,12 +1,17 @@
 import { useState, useRef } from 'react';
+import { format } from 'date-fns';
+import { ko } from 'date-fns/locale';
 import { useAuth } from '@/lib/auth';
 import { supabase } from '@/integrations/supabase/client';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
-import { Loader2, ImagePlus, X } from 'lucide-react';
+import { Calendar } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Loader2, ImagePlus, X, CalendarIcon } from 'lucide-react';
 import { toast } from 'sonner';
+import { cn } from '@/lib/utils';
 
 interface CreateEventDialogProps {
   open: boolean;
@@ -123,7 +128,35 @@ const CreateEventDialog = ({ open, onOpenChange, onCreated }: CreateEventDialogP
           <div className="grid grid-cols-3 gap-3">
             <div className="space-y-1.5">
               <label className="text-sm font-medium text-foreground">날짜 *</label>
-              <Input type="date" value={form.event_date} onChange={(e) => update('event_date', e.target.value)} required />
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className={cn(
+                      "w-full justify-start text-left font-normal h-10",
+                      !form.event_date && "text-muted-foreground"
+                    )}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {form.event_date
+                      ? format(new Date(form.event_date + 'T00:00:00'), 'yyyy년 MM월 dd일', { locale: ko })
+                      : '날짜 선택'}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={form.event_date ? new Date(form.event_date + 'T00:00:00') : undefined}
+                    onSelect={(date) => {
+                      if (date) update('event_date', format(date, 'yyyy-MM-dd'));
+                    }}
+                    defaultMonth={form.event_date ? new Date(form.event_date + 'T00:00:00') : new Date()}
+                    locale={ko}
+                    className={cn("p-3 pointer-events-auto")}
+                  />
+                </PopoverContent>
+              </Popover>
             </div>
             <div className="space-y-1.5">
               <label className="text-sm font-medium text-foreground">시작 *</label>
