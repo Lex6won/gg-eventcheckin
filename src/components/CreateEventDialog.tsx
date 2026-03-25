@@ -126,7 +126,7 @@ const CreateEventDialog = ({ open, onOpenChange, onCreated }: CreateEventDialogP
             <label className="text-sm font-medium text-foreground">행사 설명</label>
             <Input value={form.description} onChange={(e) => update('description', e.target.value)} />
           </div>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="space-y-3">
             <div className="space-y-1.5">
               <label className="text-sm font-medium text-foreground">날짜 *</label>
               <Popover>
@@ -159,13 +159,15 @@ const CreateEventDialog = ({ open, onOpenChange, onCreated }: CreateEventDialogP
                 </PopoverContent>
               </Popover>
             </div>
-            <div className="space-y-1.5">
-              <label className="text-sm font-medium text-foreground">시작 *</label>
-              <TimePicker value={form.start_time} onChange={(v) => update('start_time', v)} placeholder="시작 시간" />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-sm font-medium text-foreground">종료 *</label>
-              <TimePicker value={form.end_time} onChange={(v) => update('end_time', v)} placeholder="종료 시간" />
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-foreground">시작 시간 *</label>
+                <TimePicker value={form.start_time} onChange={(v) => update('start_time', v)} placeholder="시작 시간" />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-foreground">종료 시간 *</label>
+                <TimePicker value={form.end_time} onChange={(v) => update('end_time', v)} placeholder="종료 시간" />
+              </div>
             </div>
           </div>
           <div className="space-y-1.5">
