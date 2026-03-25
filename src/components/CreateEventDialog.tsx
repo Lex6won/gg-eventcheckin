@@ -129,7 +129,7 @@ const CreateEventDialog = ({ open, onOpenChange, onCreated }: CreateEventDialogP
           <div className="space-y-3">
             <div className="space-y-1.5">
               <label className="text-sm font-medium text-foreground">날짜 *</label>
-              <Popover>
+              <Popover open={dateOpen} onOpenChange={setDateOpen}>
                 <PopoverTrigger asChild>
                   <Button
                     type="button"
@@ -150,7 +150,10 @@ const CreateEventDialog = ({ open, onOpenChange, onCreated }: CreateEventDialogP
                     mode="single"
                     selected={form.event_date ? new Date(form.event_date + 'T00:00:00') : undefined}
                     onSelect={(date) => {
-                      if (date) update('event_date', format(date, 'yyyy-MM-dd'));
+                      if (date) {
+                        update('event_date', format(date, 'yyyy-MM-dd'));
+                        setDateOpen(false);
+                      }
                     }}
                     defaultMonth={form.event_date ? new Date(form.event_date + 'T00:00:00') : new Date()}
                     locale={ko}
