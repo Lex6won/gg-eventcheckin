@@ -70,7 +70,8 @@ async function fetchImageAsBuffer(url: string): Promise<ArrayBuffer | null> {
 
 // ─── Excel Export (Single Event) ───────────────────────────────
 
-export async function exportToExcel(event: EventData, attendees: Attendee[]) {
+export async function exportToExcel(event: EventData, attendees: Attendee[], opts: ExportOptions = {}) {
+  const showCar = opts.showCarNumber ?? false;
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet('참석확인부');
 
