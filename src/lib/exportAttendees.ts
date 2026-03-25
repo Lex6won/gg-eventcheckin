@@ -40,6 +40,10 @@ interface AllAttendeeRow {
   event_date: string;
 }
 
+interface ExportOptions {
+  showCarNumber?: boolean;
+}
+
 const formatTime = (t: string) => t?.slice(0, 5) || '';
 const formatCheckedIn = (d: string | null) =>
   d ? new Date(d).toLocaleString('ko-KR', { hour: '2-digit', minute: '2-digit' }) : '-';
@@ -66,15 +70,18 @@ async function fetchImageAsBuffer(url: string): Promise<ArrayBuffer | null> {
 
 // ─── Excel Export (Single Event) ───────────────────────────────
 
-export async function exportToExcel(event: EventData, attendees: Attendee[]) {
+export async function exportToExcel(event: EventData, attendees: Attendee[], opts: ExportOptions = {}) {
+  const showCar = opts.showCarNumber ?? false;
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet('참석확인부');
 
   const sigColWidth = 30;
-  ws.columns = [
-    { width: 6 }, { width: 10 }, { width: 18 }, { width: 16 }, { width: 10 },
-    { width: 12 }, { width: 14 }, { width: sigColWidth }, { width: 14 },
-  ];
+  const colWidths = showCar
+    ? [{ width: 6 }, { width: 10 }, { width: 18 }, { width: 16 }, { width: 10 }, { width: 12 }, { width: 14 }, { width: sigColWidth }, { width: 14 }]
+    : [{ width: 6 }, { width: 10 }, { width: 20 }, { width: 18 }, { width: 12 }, { width: 14 }, { width: sigColWidth }, { width: 14 }];
+  ws.columns = colWidths;
+  const totalCols = colWidths.length;
+  const lastColLetter = String.fromCharCode(64 + totalCols);
 
   const headerFill: ExcelJS.Fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE5E7EB' } };
   const headerFont: Partial<ExcelJS.Font> = { bold: true, color: { argb: 'FF1F2937' }, size: 10 };
@@ -83,7 +90,7 @@ export async function exportToExcel(event: EventData, attendees: Attendee[]) {
     left: { style: 'thin' }, right: { style: 'thin' },
   };
 
-  ws.mergeCells('A1:I1');
+  ws.mergeCells(`A1:${lastColLetter}1`);
   const titleCell = ws.getCell('A1');
   titleCell.value = '참석확인부';
   titleCell.font = { bold: true, size: 18 };
@@ -100,12 +107,14 @@ export async function exportToExcel(event: EventData, attendees: Attendee[]) {
     const row = ws.getRow(i + 2);
     row.getCell(1).value = r[0];
     row.getCell(1).font = { bold: true, size: 10 };
-    ws.mergeCells(i + 2, 2, i + 2, 9);
+    ws.mergeCells(i + 2, 2, i + 2, totalCols);
     row.getCell(2).value = r[1];
     row.getCell(2).font = { size: 10 };
   });
 
-  const headers = ['번호', '구분', '기관명', '부서', '직급', '성명', '차량번호', '서명', '등록시각'];
+  const headers = showCar
+    ? ['번호', '구분', '기관명', '부서', '직급', '성명', '차량번호', '서명', '등록시각']
+    : ['번호', '구분', '기관명', '부서', '직급', '성명', '서명', '등록시각'];
   const headerRow = ws.getRow(7);
   headers.forEach((h, i) => {
     const cell = headerRow.getCell(i + 1);
@@ -117,6 +126,8 @@ export async function exportToExcel(event: EventData, attendees: Attendee[]) {
   });
   headerRow.height = 24;
 
+  const sigColIndex = showCar ? 7 : 6; // 0-based col for image placement
+
   for (let idx = 0; idx < attendees.length; idx++) {
     const a = attendees[idx];
     const rowNum = idx + 8;
@@ -124,10 +135,9 @@ export async function exportToExcel(event: EventData, attendees: Attendee[]) {
     const rowHeight = 55;
     row.height = rowHeight;
 
-    const vals = [
-      idx + 1, a.org_type || '-', a.organization, a.department || '-',
-      a.position || '-', a.name, a.car_number || '-', '', formatCheckedIn(a.checked_in_at),
-    ];
+    const vals = showCar
+      ? [idx + 1, a.org_type || '-', a.organization, a.department || '-', a.position || '-', a.name, a.car_number || '-', '', formatCheckedIn(a.checked_in_at)]
+      : [idx + 1, a.org_type || '-', a.organization, a.department || '-', a.position || '-', a.name, '', formatCheckedIn(a.checked_in_at)];
     vals.forEach((v, ci) => {
       const cell = row.getCell(ci + 1);
       cell.value = v;
@@ -154,7 +164,7 @@ export async function exportToExcel(event: EventData, attendees: Attendee[]) {
           const imgWidthPx = (sigColWidth - 2) * 7.5;
           const imgHeightPx = (rowHeight - 6) * 1.33;
           ws.addImage(imgId, {
-            tl: { col: 7.05, row: rowNum - 0.93 } as any,
+            tl: { col: sigColIndex + 0.05, row: rowNum - 0.93 } as any,
             ext: { width: imgWidthPx, height: imgHeightPx },
           });
         }
@@ -183,7 +193,8 @@ function loadNotoSansKR(): Promise<ArrayBuffer> {
   return fontLoadedPromise;
 }
 
-export async function exportToPDF(event: EventData, attendees: Attendee[]) {
+export async function exportToPDF(event: EventData, attendees: Attendee[], opts: ExportOptions = {}) {
+  const showCar = opts.showCarNumber ?? false;
   const fontBuffer = await loadNotoSansKR();
   const fontBase64 = btoa(
     new Uint8Array(fontBuffer).reduce((s, b) => s + String.fromCharCode(b), '')
@@ -215,23 +226,30 @@ export async function exportToPDF(event: EventData, attendees: Attendee[]) {
 
   drawHeader();
 
-  const bodyData = attendees.map((a, i) => [
-    String(i + 1), a.org_type || '-', a.organization, a.department || '-',
-    a.position || '-', a.name, a.car_number || '-', '', formatCheckedIn(a.checked_in_at),
-  ]);
+  const sigColIdx = showCar ? 7 : 6;
+
+  const bodyData = attendees.map((a, i) => showCar
+    ? [String(i + 1), a.org_type || '-', a.organization, a.department || '-', a.position || '-', a.name, a.car_number || '-', '', formatCheckedIn(a.checked_in_at)]
+    : [String(i + 1), a.org_type || '-', a.organization, a.department || '-', a.position || '-', a.name, '', formatCheckedIn(a.checked_in_at)]
+  );
+
+  const pdfHeaders = showCar
+    ? [['번호', '구분', '기관명', '부서', '직급', '성명', '차량번호', '서명', '등록시각']]
+    : [['번호', '구분', '기관명', '부서', '직급', '성명', '서명', '등록시각']];
+
+  const pdfColStyles = showCar
+    ? { 0: { cellWidth: 10 }, 1: { cellWidth: 16 }, 2: { cellWidth: 30 }, 3: { cellWidth: 28 }, 4: { cellWidth: 18 }, 5: { cellWidth: 20 }, 6: { cellWidth: 24 }, 7: { cellWidth: 36 }, 8: { cellWidth: 22 } }
+    : { 0: { cellWidth: 10 }, 1: { cellWidth: 18 }, 2: { cellWidth: 36 }, 3: { cellWidth: 32 }, 4: { cellWidth: 20 }, 5: { cellWidth: 22 }, 6: { cellWidth: 40 }, 7: { cellWidth: 26 } };
 
   autoTable(doc, {
     startY: 56,
-    head: [['번호', '구분', '기관명', '부서', '직급', '성명', '차량번호', '서명', '등록시각']],
+    head: pdfHeaders,
     body: bodyData,
     styles: { font: 'NotoSansKR', fontSize: 9, cellPadding: 3, valign: 'middle', halign: 'center', minCellHeight: 14 },
     headStyles: { fillColor: [229, 231, 235], textColor: [31, 41, 55], fontStyle: 'normal', minCellHeight: 10 },
-    columnStyles: {
-      0: { cellWidth: 10 }, 1: { cellWidth: 16 }, 2: { cellWidth: 30 }, 3: { cellWidth: 28 },
-      4: { cellWidth: 18 }, 5: { cellWidth: 20 }, 6: { cellWidth: 24 }, 7: { cellWidth: 36 }, 8: { cellWidth: 22 },
-    },
+    columnStyles: pdfColStyles as any,
     didDrawCell: (data) => {
-      if (data.section === 'body' && data.column.index === 7) {
+      if (data.section === 'body' && data.column.index === sigColIdx) {
         const sig = sigImages[data.row.index];
         if (sig) {
           try {

@@ -42,6 +42,7 @@ interface EventData {
   end_time: string;
   location: string;
   organizer: string;
+  show_car_number: boolean;
 }
 
 const AdminEventAttendees = () => {
@@ -61,7 +62,7 @@ const AdminEventAttendees = () => {
     if (!event) return;
     setExportingExcel(true);
     try {
-      await exportToExcel(event, attendees);
+      await exportToExcel(event, attendees, { showCarNumber: event.show_car_number });
       toast.success('엑셀 파일이 다운로드되었습니다.');
     } catch (e) {
       toast.error('엑셀 다운로드에 실패했습니다.');
@@ -74,7 +75,7 @@ const AdminEventAttendees = () => {
     if (!event) return;
     setExportingPdf(true);
     try {
-      await exportToPDF(event, attendees);
+      await exportToPDF(event, attendees, { showCarNumber: event.show_car_number });
       toast.success('PDF 파일이 다운로드되었습니다.');
     } catch (e) {
       toast.error('PDF 다운로드에 실패했습니다.');
@@ -85,7 +86,7 @@ const AdminEventAttendees = () => {
 
   const fetchData = useCallback(async () => {
     const [eventRes, attendeesRes] = await Promise.all([
-      supabase.from('events').select('id, title, event_date, start_time, end_time, location, organizer').eq('id', eventId!).single(),
+      supabase.from('events').select('id, title, event_date, start_time, end_time, location, organizer, show_car_number').eq('id', eventId!).single(),
       supabase.from('attendees').select('*').eq('event_id', eventId!).order('checked_in_at', { ascending: true }),
     ]);
 
@@ -347,7 +348,7 @@ const AdminEventAttendees = () => {
                   <th className="px-4 py-3 text-left font-medium">부서</th>
                   <th className="px-4 py-3 text-left font-medium">직급</th>
                   <th className="px-4 py-3 text-left font-medium">성명</th>
-                  <th className="px-4 py-3 text-left font-medium">차량번호</th>
+                  {event?.show_car_number && <th className="px-4 py-3 text-left font-medium">차량번호</th>}
                   <th className="px-4 py-3 text-left font-medium">서명</th>
                   <th className="px-4 py-3 text-left font-medium">등록시각</th>
                   <th className="px-4 py-3 text-left font-medium w-12"></th>
@@ -365,7 +366,7 @@ const AdminEventAttendees = () => {
                     <td className="px-4 py-3 text-muted-foreground">{a.department || '-'}</td>
                     <td className="px-4 py-3 text-muted-foreground">{a.position || '-'}</td>
                     <td className="px-4 py-3 font-medium text-foreground">{a.name}</td>
-                    <td className="px-4 py-3 text-muted-foreground">{a.car_number || '-'}</td>
+                    {event?.show_car_number && <td className="px-4 py-3 text-muted-foreground">{a.car_number || '-'}</td>}
                     <td className="px-4 py-3">
                       {a.signature_url ? (
                         <button onClick={() => setSignaturePreview(a.signature_url)}>

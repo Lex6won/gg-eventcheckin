@@ -21,6 +21,7 @@ interface EventData {
   organizer: string;
   status: string | null;
   poster_url: string | null;
+  show_car_number: boolean;
 }
 
 const ORG_TYPES = ['경기도', '시군', '공공기관'] as const;
@@ -344,17 +345,19 @@ const AttendancePage = () => {
               {errors.name && <p className="text-xs text-destructive">{errors.name}</p>}
             </div>
 
-            {/* 6. 차량 등록 */}
-            <div className="space-y-1.5">
-              <label htmlFor="car" className="text-sm font-semibold text-foreground">차량번호</label>
-              <Input
-                id="car"
-                value={form.car_number}
-                onChange={(e) => updateField('car_number', e.target.value)}
-                placeholder="차량 등록이 필요하신 경우 기재해주세요"
-                className="h-12 bg-secondary/50 border-border/60"
-              />
-            </div>
+            {/* 6. 차량 등록 (조건부) */}
+            {event?.show_car_number && (
+              <div className="space-y-1.5">
+                <label htmlFor="car" className="text-sm font-semibold text-foreground">차량번호</label>
+                <Input
+                  id="car"
+                  value={form.car_number}
+                  onChange={(e) => updateField('car_number', e.target.value)}
+                  placeholder="차량 등록이 필요하신 경우 기재해주세요"
+                  className="h-12 bg-secondary/50 border-border/60"
+                />
+              </div>
+            )}
 
             {/* 7. 문의사항 */}
             <div className="space-y-1.5">
@@ -414,7 +417,7 @@ const AttendancePage = () => {
             <div className="bg-secondary/50 rounded-lg p-4 text-sm text-muted-foreground space-y-2">
               <div>
                 <span className="font-medium text-foreground">수집하는 개인정보 항목</span>
-                <p>성함, 소속, 부서명, 직급, 차량번호</p>
+                <p>성함, 소속, 부서명, 직급{event?.show_car_number ? ', 차량번호' : ''}</p>
               </div>
               <div>
                 <span className="font-medium text-foreground">수집 및 이용 목적</span>

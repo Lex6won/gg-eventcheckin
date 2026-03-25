@@ -4,6 +4,7 @@ import { useAuth } from '@/lib/auth';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Switch } from '@/components/ui/switch';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
@@ -49,6 +50,7 @@ interface EventData {
   access_code: string;
   status: string | null;
   poster_url: string | null;
+  show_car_number: boolean;
 }
 
 const CHART_COLORS = [
@@ -151,6 +153,7 @@ const AdminEventDetail = () => {
       location: event.location,
       organizer: event.organizer,
       status: event.status,
+      show_car_number: event.show_car_number,
     });
     setEditPosterFile(null);
     setEditPosterPreview(null);
@@ -375,7 +378,7 @@ const AdminEventDetail = () => {
               onClick={async () => {
                 if (!event) return;
                 try {
-                  await exportToExcel(event, attendees);
+                  await exportToExcel(event, attendees, { showCarNumber: event.show_car_number });
                   toast.success('엑셀 파일이 다운로드되었습니다.');
                 } catch { toast.error('엑셀 다운로드에 실패했습니다.'); }
               }}
@@ -389,7 +392,7 @@ const AdminEventDetail = () => {
               onClick={async () => {
                 if (!event) return;
                 try {
-                  await exportToPDF(event, attendees);
+                  await exportToPDF(event, attendees, { showCarNumber: event.show_car_number });
                   toast.success('PDF 파일이 다운로드되었습니다.');
                 } catch { toast.error('PDF 다운로드에 실패했습니다.'); }
               }}
@@ -562,6 +565,18 @@ const AdminEventDetail = () => {
                 <option value="진행중">진행중</option>
                 <option value="완료">완료</option>
               </select>
+            </div>
+
+            {/* Car number toggle */}
+            <div className="flex items-center justify-between rounded-lg border border-border p-3">
+              <div>
+                <p className="text-sm font-medium text-foreground">차량번호 입력</p>
+                <p className="text-xs text-muted-foreground">참석자에게 차량번호를 입력받습니다</p>
+              </div>
+              <Switch
+                checked={!!editForm.show_car_number}
+                onCheckedChange={(checked) => setEditForm({ ...editForm, show_car_number: checked })}
+              />
             </div>
 
             {/* Poster upload in edit */}
