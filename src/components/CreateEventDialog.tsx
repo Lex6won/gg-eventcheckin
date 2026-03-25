@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
+import TimePicker from '@/components/TimePicker';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Loader2, ImagePlus, X, CalendarIcon } from 'lucide-react';
@@ -160,11 +161,11 @@ const CreateEventDialog = ({ open, onOpenChange, onCreated }: CreateEventDialogP
             </div>
             <div className="space-y-1.5">
               <label className="text-sm font-medium text-foreground">시작 *</label>
-              <Input type="time" value={form.start_time} onChange={(e) => update('start_time', e.target.value)} required />
+              <TimePicker value={form.start_time} onChange={(v) => update('start_time', v)} placeholder="시작 시간" />
             </div>
             <div className="space-y-1.5">
               <label className="text-sm font-medium text-foreground">종료 *</label>
-              <Input type="time" value={form.end_time} onChange={(e) => update('end_time', e.target.value)} required />
+              <TimePicker value={form.end_time} onChange={(v) => update('end_time', v)} placeholder="종료 시간" />
             </div>
           </div>
           <div className="space-y-1.5">
