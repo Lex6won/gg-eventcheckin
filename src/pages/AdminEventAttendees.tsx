@@ -42,6 +42,7 @@ interface EventData {
   end_time: string;
   location: string;
   organizer: string;
+  show_car_number: boolean;
 }
 
 const AdminEventAttendees = () => {
@@ -61,7 +62,7 @@ const AdminEventAttendees = () => {
     if (!event) return;
     setExportingExcel(true);
     try {
-      await exportToExcel(event, attendees);
+      await exportToExcel(event, attendees, { showCarNumber: event.show_car_number });
       toast.success('엑셀 파일이 다운로드되었습니다.');
     } catch (e) {
       toast.error('엑셀 다운로드에 실패했습니다.');
@@ -74,7 +75,7 @@ const AdminEventAttendees = () => {
     if (!event) return;
     setExportingPdf(true);
     try {
-      await exportToPDF(event, attendees);
+      await exportToPDF(event, attendees, { showCarNumber: event.show_car_number });
       toast.success('PDF 파일이 다운로드되었습니다.');
     } catch (e) {
       toast.error('PDF 다운로드에 실패했습니다.');
@@ -85,7 +86,7 @@ const AdminEventAttendees = () => {
 
   const fetchData = useCallback(async () => {
     const [eventRes, attendeesRes] = await Promise.all([
-      supabase.from('events').select('id, title, event_date, start_time, end_time, location, organizer').eq('id', eventId!).single(),
+      supabase.from('events').select('id, title, event_date, start_time, end_time, location, organizer, show_car_number').eq('id', eventId!).single(),
       supabase.from('attendees').select('*').eq('event_id', eventId!).order('checked_in_at', { ascending: true }),
     ]);
 
