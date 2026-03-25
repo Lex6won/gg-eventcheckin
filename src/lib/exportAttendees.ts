@@ -188,7 +188,8 @@ function loadNotoSansKR(): Promise<ArrayBuffer> {
   return fontLoadedPromise;
 }
 
-export async function exportToPDF(event: EventData, attendees: Attendee[]) {
+export async function exportToPDF(event: EventData, attendees: Attendee[], opts: ExportOptions = {}) {
+  const showCar = opts.showCarNumber ?? false;
   const fontBuffer = await loadNotoSansKR();
   const fontBase64 = btoa(
     new Uint8Array(fontBuffer).reduce((s, b) => s + String.fromCharCode(b), '')
