@@ -29,14 +29,14 @@ const AdminLogin = () => {
           return;
         }
         await signUp(email, password, department.trim());
-        toast.success('회원가입이 완료되었습니다. 이메일 인증 후 로그인해주세요.');
+        toast.success('부서관리자 등록이 완료되었습니다. 이메일 인증 후 로그인해주세요.');
         setMode('login');
       }
     } catch {
       toast.error(
         mode === 'login'
           ? '로그인에 실패했습니다. 이메일과 비밀번호를 확인해주세요.'
-          : '회원가입에 실패했습니다. 다시 시도해주세요.'
+          : '부서관리자 등록에 실패했습니다. 다시 시도해주세요.'
       );
     } finally {
       setLoading(false);
@@ -51,10 +51,10 @@ const AdminLogin = () => {
             <Shield className="w-7 h-7 text-primary" />
           </div>
           <h1 className="text-xl font-bold tracking-tight text-foreground">
-            {mode === 'login' ? '관리자 로그인' : '관리자 회원가입'}
+            {mode === 'login' ? '관리자 로그인' : '부서관리자 등록'}
           </h1>
           <p className="text-sm text-muted-foreground">
-            {mode === 'login' ? '행사를 관리하려면 로그인하세요.' : '부서별 관리자 계정을 생성합니다.'}
+            {mode === 'login' ? '행사를 관리하려면 로그인하세요.' : '부서별 관리자 계정을 등록합니다.'}
           </p>
         </div>
 
@@ -80,7 +80,7 @@ const AdminLogin = () => {
                 : 'text-muted-foreground hover:text-foreground'
             }`}
           >
-            회원가입
+            부서관리자 등록
           </button>
         </div>
 
@@ -119,7 +119,7 @@ const AdminLogin = () => {
             />
           </div>
           <Button type="submit" className="w-full h-12 font-semibold" disabled={loading}>
-            {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : mode === 'login' ? '로그인' : '회원가입'}
+            {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : mode === 'login' ? '로그인' : '부서관리자 등록'}
           </Button>
         </form>
 
