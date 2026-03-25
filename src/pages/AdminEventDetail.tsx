@@ -378,7 +378,7 @@ const AdminEventDetail = () => {
               onClick={async () => {
                 if (!event) return;
                 try {
-                  await exportToExcel(event, attendees);
+                  await exportToExcel(event, attendees, { showCarNumber: event.show_car_number });
                   toast.success('엑셀 파일이 다운로드되었습니다.');
                 } catch { toast.error('엑셀 다운로드에 실패했습니다.'); }
               }}
@@ -392,7 +392,7 @@ const AdminEventDetail = () => {
               onClick={async () => {
                 if (!event) return;
                 try {
-                  await exportToPDF(event, attendees);
+                  await exportToPDF(event, attendees, { showCarNumber: event.show_car_number });
                   toast.success('PDF 파일이 다운로드되었습니다.');
                 } catch { toast.error('PDF 다운로드에 실패했습니다.'); }
               }}
