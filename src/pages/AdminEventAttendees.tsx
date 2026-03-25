@@ -366,7 +366,7 @@ const AdminEventAttendees = () => {
                     <td className="px-4 py-3 text-muted-foreground">{a.department || '-'}</td>
                     <td className="px-4 py-3 text-muted-foreground">{a.position || '-'}</td>
                     <td className="px-4 py-3 font-medium text-foreground">{a.name}</td>
-                    <td className="px-4 py-3 text-muted-foreground">{a.car_number || '-'}</td>
+                    {event?.show_car_number && <td className="px-4 py-3 text-muted-foreground">{a.car_number || '-'}</td>}
                     <td className="px-4 py-3">
                       {a.signature_url ? (
                         <button onClick={() => setSignaturePreview(a.signature_url)}>
