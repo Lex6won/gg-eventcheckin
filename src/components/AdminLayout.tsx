@@ -12,7 +12,7 @@ const navItems = [
 ];
 
 const AdminLayout = () => {
-  const { user, loading, signOut } = useAuth();
+  const { user, loading, signOut, isSuperAdmin, department } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const isMobile = useIsMobile();
@@ -23,7 +23,6 @@ const AdminLayout = () => {
     }
   }, [user, loading, navigate]);
 
-  // Redirect /admin/dashboard to /admin/events
   useEffect(() => {
     if (location.pathname === '/admin' || location.pathname === '/admin/dashboard') {
       navigate('/admin/events', { replace: true });
@@ -47,6 +46,8 @@ const AdminLayout = () => {
 
   const isActive = (path: string) => location.pathname.startsWith(path);
 
+  const roleLabel = isSuperAdmin ? '전체 관리자' : (department || '부서 관리자');
+
   return (
     <div className="min-h-svh bg-background flex">
       {/* Desktop Sidebar */}
@@ -56,6 +57,13 @@ const AdminLayout = () => {
             <Calendar className="w-5 h-5 text-primary" />
             <span className="font-bold text-foreground text-sm">행사 관리 시스템</span>
           </div>
+
+          {/* Role badge */}
+          <div className="px-4 py-3 border-b border-border/50">
+            <p className="text-xs text-muted-foreground">계정</p>
+            <p className="text-sm font-medium text-foreground truncate">{roleLabel}</p>
+          </div>
+
           <nav className="flex-1 p-3 space-y-1">
             {navItems.map((item) => (
               <button
@@ -93,7 +101,10 @@ const AdminLayout = () => {
           <header className="bg-card border-b border-border/50 sticky top-0 z-10 h-14 px-4 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Calendar className="w-5 h-5 text-primary" />
-              <span className="font-bold text-foreground text-sm">행사 관리</span>
+              <div>
+                <span className="font-bold text-foreground text-sm">행사 관리</span>
+                <span className="ml-2 text-xs text-muted-foreground">{roleLabel}</span>
+              </div>
             </div>
             <Button size="icon" variant="ghost" onClick={handleSignOut}>
               <LogOut className="w-4 h-4" />

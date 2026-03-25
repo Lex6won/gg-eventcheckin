@@ -19,6 +19,7 @@ interface Event {
   organizer: string;
   access_code: string;
   status: string | null;
+  created_by: string | null;
   attendee_count?: number;
 }
 
@@ -32,7 +33,7 @@ const generateAccessCode = () => {
 };
 
 const AdminEvents = () => {
-  const { user } = useAuth();
+  const { user, isSuperAdmin } = useAuth();
   const navigate = useNavigate();
   const [events, setEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
@@ -40,10 +41,17 @@ const AdminEvents = () => {
   const [filter, setFilter] = useState<string>('전체');
 
   const fetchEvents = async () => {
-    const { data, error } = await supabase
+    let query = supabase
       .from('events')
       .select('*')
       .order('event_date', { ascending: false });
+
+    // Regular admins only see their own events
+    if (!isSuperAdmin && user) {
+      query = query.eq('created_by', user.id);
+    }
+
+    const { data, error } = await query;
 
     if (error) {
       console.error(error);
@@ -66,7 +74,7 @@ const AdminEvents = () => {
 
   useEffect(() => {
     if (user) fetchEvents();
-  }, [user]);
+  }, [user, isSuperAdmin]);
 
   const handleDuplicate = async (event: Event) => {
     if (!user) return;
@@ -105,7 +113,6 @@ const AdminEvents = () => {
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-6 space-y-5">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold text-foreground">행사 관리</h1>
         <Button size="sm" onClick={() => setShowCreate(true)} aria-label="새 행사 만들기">
@@ -114,7 +121,6 @@ const AdminEvents = () => {
         </Button>
       </div>
 
-      {/* Status Filter */}
       <div className="flex gap-2 overflow-x-auto" role="tablist" aria-label="행사 상태 필터">
         {statusFilters.map((s) => (
           <button
@@ -133,7 +139,6 @@ const AdminEvents = () => {
         ))}
       </div>
 
-      {/* Event List */}
       {filtered.length === 0 ? (
         <div className="text-center py-20 space-y-3">
           <Calendar className="w-12 h-12 mx-auto text-muted-foreground/40" />
