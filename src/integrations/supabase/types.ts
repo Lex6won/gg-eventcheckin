@@ -16,39 +16,54 @@ export type Database = {
     Tables: {
       attendees: {
         Row: {
+          car_number: string | null
           checked_in_at: string | null
           created_at: string | null
+          department: string | null
           email: string | null
           event_id: string
           id: string
+          inquiry: string | null
           name: string
+          org_type: string | null
           organization: string
           phone: string | null
           position: string | null
+          privacy_agreed: boolean
           signature_url: string
         }
         Insert: {
+          car_number?: string | null
           checked_in_at?: string | null
           created_at?: string | null
+          department?: string | null
           email?: string | null
           event_id: string
           id?: string
+          inquiry?: string | null
           name: string
+          org_type?: string | null
           organization: string
           phone?: string | null
           position?: string | null
+          privacy_agreed?: boolean
           signature_url: string
         }
         Update: {
+          car_number?: string | null
           checked_in_at?: string | null
           created_at?: string | null
+          department?: string | null
           email?: string | null
           event_id?: string
           id?: string
+          inquiry?: string | null
           name?: string
+          org_type?: string | null
           organization?: string
           phone?: string | null
           position?: string | null
+          privacy_agreed?: boolean
           signature_url?: string
         }
         Relationships: [

@@ -22,11 +22,14 @@ import { exportToExcel, exportToPDF } from '@/lib/exportAttendees';
 
 interface Attendee {
   id: string;
+  org_type: string | null;
   organization: string;
+  department: string | null;
   position: string | null;
   name: string;
   phone: string | null;
-  
+  car_number: string | null;
+  inquiry: string | null;
   signature_url: string;
   checked_in_at: string | null;
 }
@@ -161,7 +164,9 @@ const AdminEventAttendees = () => {
     ? attendees.filter(
         (a) =>
           a.name.includes(search) ||
-          a.organization.includes(search)
+          a.organization.includes(search) ||
+          (a.department && a.department.includes(search)) ||
+          (a.car_number && a.car_number.includes(search))
       )
     : attendees;
 
@@ -274,7 +279,13 @@ const AdminEventAttendees = () => {
                       <span className="text-xs text-muted-foreground">{a.position}</span>
                     )}
                   </div>
-                  <p className="text-sm text-muted-foreground mt-0.5">{a.organization}</p>
+                  <p className="text-sm text-muted-foreground mt-0.5">
+                    {a.org_type && <span className="text-xs bg-secondary px-1.5 py-0.5 rounded mr-1">{a.org_type}</span>}
+                    {a.organization} {a.department && `· ${a.department}`}
+                  </p>
+                  {a.car_number && (
+                    <p className="text-xs text-muted-foreground mt-0.5">🚗 {a.car_number}</p>
+                  )}
                 </div>
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
@@ -331,9 +342,12 @@ const AdminEventAttendees = () => {
               <thead>
                 <tr className="bg-secondary/50 text-muted-foreground">
                   <th className="px-4 py-3 text-left font-medium w-12">번호</th>
-                  <th className="px-4 py-3 text-left font-medium">소속</th>
+                  <th className="px-4 py-3 text-left font-medium">구분</th>
+                  <th className="px-4 py-3 text-left font-medium">기관명</th>
+                  <th className="px-4 py-3 text-left font-medium">부서</th>
                   <th className="px-4 py-3 text-left font-medium">직급</th>
                   <th className="px-4 py-3 text-left font-medium">성명</th>
+                  <th className="px-4 py-3 text-left font-medium">차량번호</th>
                   <th className="px-4 py-3 text-left font-medium">서명</th>
                   <th className="px-4 py-3 text-left font-medium">등록시각</th>
                   <th className="px-4 py-3 text-left font-medium w-12"></th>
@@ -346,9 +360,12 @@ const AdminEventAttendees = () => {
                     className="border-t border-border/30 hover:bg-secondary/30 transition-colors"
                   >
                     <td className="px-4 py-3 tabular-nums text-muted-foreground">{i + 1}</td>
+                    <td className="px-4 py-3 text-muted-foreground">{a.org_type || '-'}</td>
                     <td className="px-4 py-3 text-foreground">{a.organization}</td>
+                    <td className="px-4 py-3 text-muted-foreground">{a.department || '-'}</td>
                     <td className="px-4 py-3 text-muted-foreground">{a.position || '-'}</td>
                     <td className="px-4 py-3 font-medium text-foreground">{a.name}</td>
+                    <td className="px-4 py-3 text-muted-foreground">{a.car_number || '-'}</td>
                     <td className="px-4 py-3">
                       {a.signature_url ? (
                         <button onClick={() => setSignaturePreview(a.signature_url)}>
