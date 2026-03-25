@@ -4,6 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Switch } from '@/components/ui/switch';
 import { Loader2, ImagePlus, X } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -36,6 +37,7 @@ const CreateEventDialog = ({ open, onOpenChange, onCreated }: CreateEventDialogP
     end_time: '',
     location: '',
     organizer: '',
+    show_car_number: false,
   });
 
   const handlePosterSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -90,7 +92,7 @@ const CreateEventDialog = ({ open, onOpenChange, onCreated }: CreateEventDialogP
 
       toast.success('행사가 생성되었습니다.');
       onOpenChange(false);
-      setForm({ title: '', description: '', event_date: '', start_time: '', end_time: '', location: '', organizer: '' });
+      setForm({ title: '', description: '', event_date: '', start_time: '', end_time: '', location: '', organizer: '', show_car_number: false });
       removePoster();
       onCreated();
     } catch (err) {
@@ -139,6 +141,18 @@ const CreateEventDialog = ({ open, onOpenChange, onCreated }: CreateEventDialogP
           <div className="space-y-1.5">
             <label className="text-sm font-medium text-foreground">주관부서 *</label>
             <Input value={form.organizer} onChange={(e) => update('organizer', e.target.value)} required />
+          </div>
+
+          {/* Car number toggle */}
+          <div className="flex items-center justify-between rounded-lg border border-border p-3">
+            <div>
+              <p className="text-sm font-medium text-foreground">차량번호 입력</p>
+              <p className="text-xs text-muted-foreground">참석자에게 차량번호를 입력받습니다</p>
+            </div>
+            <Switch
+              checked={form.show_car_number}
+              onCheckedChange={(checked) => setForm({ ...form, show_car_number: checked })}
+            />
           </div>
 
           {/* Poster Upload */}
