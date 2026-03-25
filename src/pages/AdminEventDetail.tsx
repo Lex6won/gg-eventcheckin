@@ -4,6 +4,7 @@ import { useAuth } from '@/lib/auth';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Switch } from '@/components/ui/switch';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
@@ -564,6 +565,18 @@ const AdminEventDetail = () => {
                 <option value="진행중">진행중</option>
                 <option value="완료">완료</option>
               </select>
+            </div>
+
+            {/* Car number toggle */}
+            <div className="flex items-center justify-between rounded-lg border border-border p-3">
+              <div>
+                <p className="text-sm font-medium text-foreground">차량번호 입력</p>
+                <p className="text-xs text-muted-foreground">참석자에게 차량번호를 입력받습니다</p>
+              </div>
+              <Switch
+                checked={!!editForm.show_car_number}
+                onCheckedChange={(checked) => setEditForm({ ...editForm, show_car_number: checked })}
+              />
             </div>
 
             {/* Poster upload in edit */}
