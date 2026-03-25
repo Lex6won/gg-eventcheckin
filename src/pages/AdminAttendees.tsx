@@ -9,9 +9,12 @@ import { exportAllAttendeesToExcel, exportAllAttendeesToPDF } from '@/lib/export
 
 interface AttendeeRow {
   id: string;
+  org_type: string | null;
   organization: string;
+  department: string | null;
   position: string | null;
   name: string;
+  car_number: string | null;
   checked_in_at: string | null;
   event_title: string;
   event_date: string;
@@ -154,9 +157,12 @@ const AdminAttendees = () => {
                 <tr className="bg-secondary/50 text-muted-foreground">
                   <th className="px-4 py-3 text-left font-medium">행사</th>
                   <th className="px-4 py-3 text-left font-medium">날짜</th>
-                  <th className="px-4 py-3 text-left font-medium">소속</th>
+                  <th className="px-4 py-3 text-left font-medium">구분</th>
+                  <th className="px-4 py-3 text-left font-medium">기관명</th>
+                  <th className="px-4 py-3 text-left font-medium">부서</th>
                   <th className="px-4 py-3 text-left font-medium">성명</th>
                   <th className="px-4 py-3 text-left font-medium">직급</th>
+                  <th className="px-4 py-3 text-left font-medium">차량번호</th>
                   <th className="px-4 py-3 text-left font-medium">등록시간</th>
                 </tr>
               </thead>
@@ -165,9 +171,12 @@ const AdminAttendees = () => {
                   <tr key={a.id} className="border-t border-border/30 hover:bg-secondary/30 transition-colors">
                     <td className="px-4 py-3 text-foreground font-medium">{a.event_title}</td>
                     <td className="px-4 py-3 tabular-nums text-muted-foreground">{a.event_date}</td>
+                    <td className="px-4 py-3 text-muted-foreground">{a.org_type || '-'}</td>
                     <td className="px-4 py-3 text-foreground">{a.organization}</td>
+                    <td className="px-4 py-3 text-muted-foreground">{a.department || '-'}</td>
                     <td className="px-4 py-3 font-medium text-foreground">{a.name}</td>
                     <td className="px-4 py-3 text-muted-foreground">{a.position || '-'}</td>
+                    <td className="px-4 py-3 text-muted-foreground">{a.car_number || '-'}</td>
                     <td className="px-4 py-3 tabular-nums text-muted-foreground text-xs">
                       {a.checked_in_at
                         ? new Date(a.checked_in_at).toLocaleString('ko-KR', {
