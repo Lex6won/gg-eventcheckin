@@ -13,7 +13,7 @@ interface AttendeeRow {
   position: string | null;
   name: string;
   phone: string | null;
-  email: string | null;
+  
   checked_in_at: string | null;
   event_title: string;
   event_date: string;
@@ -52,8 +52,7 @@ const AdminAttendees = () => {
     ? attendees.filter(a =>
         a.name.includes(search) ||
         a.organization.includes(search) ||
-        a.event_title.includes(search) ||
-        (a.email && a.email.includes(search))
+        a.event_title.includes(search)
       )
     : attendees;
 
@@ -143,7 +142,6 @@ const AdminAttendees = () => {
                   <th className="px-4 py-3 text-left font-medium">소속</th>
                   <th className="px-4 py-3 text-left font-medium">성명</th>
                   <th className="px-4 py-3 text-left font-medium">직급</th>
-                  <th className="px-4 py-3 text-left font-medium">이메일</th>
                   <th className="px-4 py-3 text-left font-medium">등록시간</th>
                 </tr>
               </thead>
@@ -155,7 +153,6 @@ const AdminAttendees = () => {
                     <td className="px-4 py-3 text-foreground">{a.organization}</td>
                     <td className="px-4 py-3 font-medium text-foreground">{a.name}</td>
                     <td className="px-4 py-3 text-muted-foreground">{a.position || '-'}</td>
-                    <td className="px-4 py-3 text-muted-foreground">{a.email || '-'}</td>
                     <td className="px-4 py-3 tabular-nums text-muted-foreground text-xs">
                       {a.checked_in_at
                         ? new Date(a.checked_in_at).toLocaleString('ko-KR', {

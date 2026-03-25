@@ -9,7 +9,6 @@ interface Attendee {
   position: string | null;
   name: string;
   phone: string | null;
-  email: string | null;
   signature_url: string;
   checked_in_at: string | null;
 }
@@ -29,7 +28,6 @@ interface AllAttendeeRow {
   position: string | null;
   name: string;
   phone: string | null;
-  email: string | null;
   checked_in_at: string | null;
   event_title: string;
   event_date: string;
@@ -73,7 +71,7 @@ export async function exportToExcel(event: EventData, attendees: Attendee[]) {
   const sigColWidth = 30;
   ws.columns = [
     { width: 6 }, { width: 22 }, { width: 10 }, { width: 12 },
-    { width: 16 }, { width: sigColWidth }, { width: 14 },
+    { width: sigColWidth }, { width: 14 },
   ];
 
   const headerFill: ExcelJS.Fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE5E7EB' } };
@@ -83,7 +81,7 @@ export async function exportToExcel(event: EventData, attendees: Attendee[]) {
     left: { style: 'thin' }, right: { style: 'thin' },
   };
 
-  ws.mergeCells('A1:G1');
+  ws.mergeCells('A1:F1');
   const titleCell = ws.getCell('A1');
   titleCell.value = '참석확인부';
   titleCell.font = { bold: true, size: 18 };
@@ -100,12 +98,12 @@ export async function exportToExcel(event: EventData, attendees: Attendee[]) {
     const row = ws.getRow(i + 2);
     row.getCell(1).value = r[0];
     row.getCell(1).font = { bold: true, size: 10 };
-    ws.mergeCells(i + 2, 2, i + 2, 7);
+    ws.mergeCells(i + 2, 2, i + 2, 6);
     row.getCell(2).value = r[1];
     row.getCell(2).font = { size: 10 };
   });
 
-  const headers = ['번호', '소속', '직책/직급', '이름', '이메일', '서명', '등록시각'];
+  const headers = ['번호', '소속', '직책/직급', '이름', '서명', '등록시각'];
   const headerRow = ws.getRow(7);
   headers.forEach((h, i) => {
     const cell = headerRow.getCell(i + 1);
@@ -124,7 +122,7 @@ export async function exportToExcel(event: EventData, attendees: Attendee[]) {
     const rowHeight = 55;
     row.height = rowHeight;
 
-    const vals = [idx + 1, a.organization, a.position || '-', a.name, a.email || '-', '', formatCheckedIn(a.checked_in_at)];
+    const vals = [idx + 1, a.organization, a.position || '-', a.name, '', formatCheckedIn(a.checked_in_at)];
     vals.forEach((v, ci) => {
       const cell = row.getCell(ci + 1);
       cell.value = v;
@@ -148,12 +146,10 @@ export async function exportToExcel(event: EventData, attendees: Attendee[]) {
         }
         if (buf) {
           const imgId = wb.addImage({ buffer: buf, extension: 'png' });
-          // Use tl + ext for reliable sizing
-          // Column width in px ≈ width * 7.5, row height in px ≈ height * 1.33
           const imgWidthPx = (sigColWidth - 2) * 7.5;
           const imgHeightPx = (rowHeight - 6) * 1.33;
           ws.addImage(imgId, {
-            tl: { col: 5.05, row: rowNum - 0.93 } as any,
+            tl: { col: 4.05, row: rowNum - 0.93 } as any,
             ext: { width: imgWidthPx, height: imgHeightPx },
           });
         }
@@ -217,21 +213,21 @@ export async function exportToPDF(event: EventData, attendees: Attendee[]) {
   drawHeader();
 
   const bodyData = attendees.map((a, i) => [
-    String(i + 1), a.organization, a.position || '-', a.name, a.email || '-', '', formatCheckedIn(a.checked_in_at),
+    String(i + 1), a.organization, a.position || '-', a.name, '', formatCheckedIn(a.checked_in_at),
   ]);
 
   autoTable(doc, {
     startY: 56,
-    head: [['번호', '소속', '직책/직급', '이름', '이메일', '서명', '등록시각']],
+    head: [['번호', '소속', '직책/직급', '이름', '서명', '등록시각']],
     body: bodyData,
     styles: { font: 'NotoSansKR', fontSize: 9, cellPadding: 3, valign: 'middle', halign: 'center', minCellHeight: 14 },
     headStyles: { fillColor: [229, 231, 235], textColor: [31, 41, 55], fontStyle: 'normal', minCellHeight: 10 },
     columnStyles: {
       0: { cellWidth: 12 }, 1: { cellWidth: 34 }, 2: { cellWidth: 18 },
-      3: { cellWidth: 22 }, 4: { cellWidth: 28 }, 5: { cellWidth: 32 }, 6: { cellWidth: 24 },
+      3: { cellWidth: 22 }, 4: { cellWidth: 40 }, 5: { cellWidth: 24 },
     },
     didDrawCell: (data) => {
-      if (data.section === 'body' && data.column.index === 5) {
+      if (data.section === 'body' && data.column.index === 4) {
         const sig = sigImages[data.row.index];
         if (sig) {
           try {
@@ -277,7 +273,7 @@ export async function exportAllAttendeesToExcel(attendees: AllAttendeeRow[]) {
 
   ws.columns = [
     { width: 6 }, { width: 22 }, { width: 14 }, { width: 22 },
-    { width: 12 }, { width: 10 }, { width: 16 }, { width: 16 },
+    { width: 12 }, { width: 10 }, { width: 16 },
   ];
 
   const headerFill: ExcelJS.Fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE5E7EB' } };
@@ -287,19 +283,19 @@ export async function exportAllAttendeesToExcel(attendees: AllAttendeeRow[]) {
     left: { style: 'thin' }, right: { style: 'thin' },
   };
 
-  ws.mergeCells('A1:H1');
+  ws.mergeCells('A1:G1');
   const titleCell = ws.getCell('A1');
   titleCell.value = '참석자 현황';
   titleCell.font = { bold: true, size: 18 };
   titleCell.alignment = { horizontal: 'center', vertical: 'middle' };
   ws.getRow(1).height = 36;
 
-  ws.mergeCells('A2:H2');
+  ws.mergeCells('A2:G2');
   ws.getCell('A2').value = `총 ${attendees.length}명`;
   ws.getCell('A2').font = { size: 10 };
   ws.getCell('A2').alignment = { horizontal: 'right' };
 
-  const headers = ['번호', '행사', '날짜', '소속', '성명', '직급', '이메일', '등록시간'];
+  const headers = ['번호', '행사', '날짜', '소속', '성명', '직급', '등록시간'];
   const headerRow = ws.getRow(4);
   headers.forEach((h, i) => {
     const cell = headerRow.getCell(i + 1);
@@ -315,7 +311,7 @@ export async function exportAllAttendeesToExcel(attendees: AllAttendeeRow[]) {
     const row = ws.getRow(idx + 5);
     const vals = [
       idx + 1, a.event_title, a.event_date, a.organization,
-      a.name, a.position || '-', a.email || '-',
+      a.name, a.position || '-',
       a.checked_in_at
         ? new Date(a.checked_in_at).toLocaleString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
         : '-',
@@ -359,7 +355,7 @@ export async function exportAllAttendeesToPDF(attendees: AllAttendeeRow[]) {
   drawHeader();
 
   const bodyData = attendees.map((a, i) => [
-    String(i + 1), a.event_title, a.event_date, a.organization, a.name, a.position || '-', a.email || '-',
+    String(i + 1), a.event_title, a.event_date, a.organization, a.name, a.position || '-',
     a.checked_in_at
       ? new Date(a.checked_in_at).toLocaleString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
       : '-',
@@ -367,13 +363,13 @@ export async function exportAllAttendeesToPDF(attendees: AllAttendeeRow[]) {
 
   autoTable(doc, {
     startY: 26,
-    head: [['번호', '행사', '날짜', '소속', '성명', '직급', '이메일', '등록시간']],
+    head: [['번호', '행사', '날짜', '소속', '성명', '직급', '등록시간']],
     body: bodyData,
     styles: { font: 'NotoSansKR', fontSize: 9, cellPadding: 3, valign: 'middle', halign: 'center' },
     headStyles: { fillColor: [229, 231, 235], textColor: [31, 41, 55], fontStyle: 'normal' },
     columnStyles: {
       0: { cellWidth: 12 }, 1: { cellWidth: 50 }, 2: { cellWidth: 26 }, 3: { cellWidth: 40 },
-      4: { cellWidth: 24 }, 5: { cellWidth: 20 }, 6: { cellWidth: 30 }, 7: { cellWidth: 30 },
+      4: { cellWidth: 24 }, 5: { cellWidth: 20 }, 6: { cellWidth: 30 },
     },
     didDrawPage: (data) => {
       if (data.pageNumber > 1) {
