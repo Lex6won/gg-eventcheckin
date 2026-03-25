@@ -1,51 +1,18 @@
 
 
-## Plan: 부서별 관리자 권한 분리 및 전체 관리자 설정
+## 문제 분석 결과
 
-### 현재 상태
-- 관리자 계정은 gg0018@gg.go.kr 1개만 존재
-- 모든 행사/참석자 데이터를 제한 없이 조회 가능
-- 관리자 회원가입 기능 없음
+### 원인
+미리보기(Preview)에서 "링크 복사" 시 `getPublicOrigin()` 함수가 배포된 URL(`https://gg-eventcheckin.lovable.app`)을 반환합니다. 최근 변경사항이 아직 배포되지 않았기 때문에, 복사된 링크로 접속하면 **이전 버전**의 참석 등록 폼이 표시됩니다.
 
-### 변경 목표
-1. **부서별 관리자 계정** 생성 가능 (회원가입 추가)
-2. **gg0018@gg.go.kr** → 전체 관리자(super_admin)
-3. **일반 관리자** → 자기가 만든 행사만 관리/조회
-4. **전체 관리자** → 모든 행사/참석자 조회 가능
+### 해결 방법
 
----
+**앱을 다시 배포(Publish)하면 해결됩니다.** 코드 변경은 필요하지 않습니다.
 
-### 기술 변경 사항
+Lovable 에디터 우측 상단의 **Share → Publish** 버튼을 눌러 최신 코드를 배포해주세요.
 
-**1. DB 마이그레이션**
-- `user_roles` 테이블 생성 (app_role enum: `super_admin`, `admin`)
-- `has_role()` security definer 함수 생성
-- gg0018@gg.go.kr 계정에 `super_admin` 역할 부여 (INSERT)
-- 신규 가입 시 자동으로 `admin` 역할 부여하는 트리거 생성
-- events SELECT RLS를 `created_by = auth.uid() OR has_role(super_admin)`으로 변경
-- attendees SELECT RLS도 동일하게 변경 (자기 행사 참석자만 or 전체관리자)
+배포 후 `https://gg-eventcheckin.lovable.app/attend/...` 링크로 접속하면 업데이트된 입력 항목(소속 구분 4종, 직급 필수, 차량번호 조건부 등)이 정상 반영됩니다.
 
-**2. 관리자 회원가입 기능 추가 (`AdminLogin.tsx`)**
-- 로그인 화면에 "회원가입" 탭/토글 추가
-- 이메일 + 비밀번호로 가입 (부서명 입력 필드 추가 → profiles 테이블에 저장)
-- profiles 테이블 생성 (user_id, department, created_at)
-
-**3. Auth Context 확장 (`lib/auth.tsx`)**
-- `isSuperAdmin` 상태 추가: user_roles 테이블에서 역할 조회
-- `signUp` 함수 추가
-
-**4. 행사 목록 필터링 (`AdminEvents.tsx`)**
-- 전체 관리자: 모든 행사 조회 (현재 그대로)
-- 일반 관리자: `created_by = user.id` 필터 추가
-
-**5. 참석자 현황 필터링 (`AdminAttendees.tsx`)**
-- 전체 관리자: 전체 참석자
-- 일반 관리자: 자기 행사의 참석자만
-
-**6. 설정 페이지 (`AdminSettings.tsx`)**
-- 전체 관리자에게만 전체 관리자 목록 표시
-- 역할 표시 (전체 관리자 / 부서 관리자)
-
-**7. 사이드바/헤더**
-- 역할에 따라 "전체 관리자" 또는 부서명 표시
+### 대안 (테스트 목적)
+배포 전에 테스트하고 싶다면, `getPublicOrigin()`이 미리보기 URL을 그대로 반환하도록 임시 수정할 수 있습니다. 다만 이 경우 외부 사용자에게 공유하기에는 미리보기 URL이 적합하지 않으므로, **배포가 근본적인 해결책**입니다.
 
