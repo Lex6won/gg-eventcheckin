@@ -12,15 +12,13 @@ interface AttendeeRow {
   organization: string;
   position: string | null;
   name: string;
-  phone: string | null;
-  
   checked_in_at: string | null;
   event_title: string;
   event_date: string;
 }
 
 const AdminAttendees = () => {
-  const { user } = useAuth();
+  const { user, isSuperAdmin } = useAuth();
   const [attendees, setAttendees] = useState<AttendeeRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -29,8 +27,25 @@ const AdminAttendees = () => {
 
   useEffect(() => {
     const fetch = async () => {
-      const { data: events } = await supabase.from('events').select('id, title, event_date');
-      const { data: atts } = await supabase.from('attendees').select('*').order('checked_in_at', { ascending: false });
+      // Get events (filtered by ownership for regular admins)
+      let eventsQuery = supabase.from('events').select('id, title, event_date');
+      if (!isSuperAdmin && user) {
+        eventsQuery = eventsQuery.eq('created_by', user.id);
+      }
+      const { data: events } = await eventsQuery;
+
+      const eventIds = (events || []).map(e => e.id);
+      if (eventIds.length === 0) {
+        setAttendees([]);
+        setLoading(false);
+        return;
+      }
+
+      const { data: atts } = await supabase
+        .from('attendees')
+        .select('*')
+        .in('event_id', eventIds)
+        .order('checked_in_at', { ascending: false });
 
       const eventMap = new Map((events || []).map(e => [e.id, e]));
       const rows: AttendeeRow[] = (atts || []).map(a => {
@@ -46,7 +61,7 @@ const AdminAttendees = () => {
       setLoading(false);
     };
     if (user) fetch();
-  }, [user]);
+  }, [user, isSuperAdmin]);
 
   const filtered = search
     ? attendees.filter(a =>

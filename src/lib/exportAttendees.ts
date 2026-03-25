@@ -27,7 +27,7 @@ interface AllAttendeeRow {
   organization: string;
   position: string | null;
   name: string;
-  phone: string | null;
+  phone?: string | null;
   checked_in_at: string | null;
   event_title: string;
   event_date: string;

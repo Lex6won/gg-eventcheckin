@@ -6,7 +6,10 @@ interface AuthContextType {
   session: Session | null;
   user: User | null;
   loading: boolean;
+  isSuperAdmin: boolean;
+  department: string | null;
   signIn: (email: string, password: string) => Promise<void>;
+  signUp: (email: string, password: string, department: string) => Promise<void>;
   signOut: () => Promise<void>;
 }
 
@@ -16,17 +19,39 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [department, setDepartment] = useState<string | null>(null);
+
+  const fetchRoleAndProfile = async (userId: string) => {
+    const [roleRes, profileRes] = await Promise.all([
+      supabase.from('user_roles').select('role').eq('user_id', userId),
+      supabase.from('profiles').select('department').eq('user_id', userId).single(),
+    ]);
+
+    const roles = roleRes.data?.map(r => r.role) || [];
+    setIsSuperAdmin(roles.includes('super_admin'));
+    setDepartment(profileRes.data?.department || null);
+  };
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
       setUser(session?.user ?? null);
+      if (session?.user) {
+        setTimeout(() => fetchRoleAndProfile(session.user.id), 0);
+      } else {
+        setIsSuperAdmin(false);
+        setDepartment(null);
+      }
       setLoading(false);
     });
 
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
+      if (session?.user) {
+        fetchRoleAndProfile(session.user.id);
+      }
       setLoading(false);
     });
 
@@ -38,13 +63,25 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     if (error) throw error;
   };
 
+  const signUp = async (email: string, password: string, dept: string) => {
+    const { data, error } = await supabase.auth.signUp({ email, password });
+    if (error) throw error;
+    // Save department to profile
+    if (data.user) {
+      await supabase.from('profiles').upsert({
+        user_id: data.user.id,
+        department: dept,
+      });
+    }
+  };
+
   const signOut = async () => {
     const { error } = await supabase.auth.signOut();
     if (error) throw error;
   };
 
   return (
-    <AuthContext.Provider value={{ session, user, loading, signIn, signOut }}>
+    <AuthContext.Provider value={{ session, user, loading, isSuperAdmin, department, signIn, signUp, signOut }}>
       {children}
     </AuthContext.Provider>
   );
