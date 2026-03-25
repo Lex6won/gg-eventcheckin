@@ -49,6 +49,7 @@ interface EventData {
   access_code: string;
   status: string | null;
   poster_url: string | null;
+  show_car_number: boolean;
 }
 
 const CHART_COLORS = [
