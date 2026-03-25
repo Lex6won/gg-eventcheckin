@@ -32,6 +32,7 @@ const generateAccessCode = () => {
 const CreateEventDialog = ({ open, onOpenChange, onCreated }: CreateEventDialogProps) => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
+  const [dateOpen, setDateOpen] = useState(false);
   const [posterFile, setPosterFile] = useState<File | null>(null);
   const [posterPreview, setPosterPreview] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
