@@ -24,7 +24,7 @@ interface EventData {
   show_car_number: boolean;
 }
 
-const ORG_TYPES = ['경기도', '시군', '공공기관'] as const;
+const ORG_TYPES = ['경기도', '시군', '공공기관', '직접입력'] as const;
 
 const AttendancePage = () => {
   const { accessCode } = useParams<{ accessCode: string }>();
@@ -97,6 +97,7 @@ const AttendancePage = () => {
     if (!form.org_type) e.org_type = '소속 구분을 선택해주세요.';
     if (!form.organization.trim()) e.organization = '기관명을 입력해주세요.';
     if (!form.department.trim()) e.department = '부서명을 입력해주세요.';
+    if (!form.position.trim()) e.position = '직급(위)을 입력해주세요.';
     if (!form.name.trim()) e.name = '성함을 입력해주세요.';
     if (!form.privacy_agreed) e.privacy_agreed = '개인정보 수집 및 이용에 동의해주세요.';
     if (!sigCanvas.current || sigCanvas.current.isEmpty()) e.signature = '서명을 해주세요.';
@@ -320,14 +321,17 @@ const AttendancePage = () => {
 
             {/* 4. 직급(위) */}
             <div className="space-y-1.5">
-              <label htmlFor="position" className="text-sm font-semibold text-foreground">직급(위)</label>
+              <label htmlFor="position" className="text-sm font-semibold text-foreground">
+                직급(위) <span className="text-destructive">*</span>
+              </label>
               <Input
                 id="position"
                 value={form.position}
                 onChange={(e) => updateField('position', e.target.value)}
                 placeholder="예: 데이터분석팀장, 행정6급, 대리 등"
-                className="h-12 bg-secondary/50 border-border/60"
+                className={`h-12 bg-secondary/50 border-border/60 ${errors.position ? 'border-destructive' : ''}`}
               />
+              {errors.position && <p className="text-xs text-destructive">{errors.position}</p>}
             </div>
 
             {/* 5. 성함 */}
