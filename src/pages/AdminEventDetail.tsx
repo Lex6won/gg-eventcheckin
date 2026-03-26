@@ -455,39 +455,47 @@ const AdminEventDetail = () => {
       <Dialog open={showStats} onOpenChange={setShowStats}>
         <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <BarChart3 className="w-5 h-5 text-primary" />
+            <DialogTitle className="flex items-center gap-2 text-sm">
+              <BarChart3 className="w-4 h-4 text-primary" />
               참석자 통계
+              <span className="text-xs font-normal text-muted-foreground ml-1">({attendees.length}명)</span>
             </DialogTitle>
           </DialogHeader>
 
           {attendees.length === 0 ? (
-            <p className="text-center text-muted-foreground py-8">참석자가 없어 통계를 표시할 수 없습니다.</p>
+            <p className="text-center text-muted-foreground py-8 text-xs">참석자가 없어 통계를 표시할 수 없습니다.</p>
           ) : (
-            <div className="space-y-8">
+            <div className="space-y-6">
               {/* Org chart */}
-              <div className="space-y-3">
-                <h3 className="text-sm font-semibold text-foreground">소속별 참석 현황</h3>
+              <div className="space-y-2">
+                <h3 className="text-xs font-semibold text-foreground">소속별 참석 현황</h3>
                 {orgStats.length > 0 && (
-                  <div className="h-64">
+                  <div style={{ height: Math.max(180, Math.min(280, orgStats.length * 36)) }}>
                     <ResponsiveContainer width="100%" height="100%">
                       <PieChart>
                         <Pie
                           data={orgStats}
                           cx="50%"
                           cy="50%"
-                          innerRadius={50}
-                          outerRadius={90}
-                          paddingAngle={2}
+                          innerRadius={orgStats.length > 5 ? 35 : 45}
+                          outerRadius={orgStats.length > 5 ? 65 : 80}
+                          paddingAngle={orgStats.length > 5 ? 1 : 2}
                           dataKey="value"
-                          label={({ name, value }) => `${name} (${value})`}
+                          label={({ name, value }) => {
+                            const displayName = name.length > 6 ? name.slice(0, 6) + '…' : name;
+                            return `${displayName} (${value})`;
+                          }}
+                          fontSize={orgStats.length > 5 ? 9 : 10}
                         >
                           {orgStats.map((_, index) => (
                             <Cell key={index} fill={CHART_COLORS[index % CHART_COLORS.length]} />
                           ))}
                         </Pie>
-                        <Tooltip />
-                        <Legend />
+                        <Tooltip contentStyle={{ fontSize: '11px' }} />
+                        <Legend
+                          wrapperStyle={{ fontSize: '10px' }}
+                          iconSize={8}
+                        />
                       </PieChart>
                     </ResponsiveContainer>
                   </div>
@@ -496,16 +504,29 @@ const AdminEventDetail = () => {
 
               {/* Time trend */}
               {timeStats.length > 0 && (
-                <div className="space-y-3">
-                  <h3 className="text-sm font-semibold text-foreground">시간대별 등록 추이</h3>
-                  <div className="h-56">
+                <div className="space-y-2">
+                  <h3 className="text-xs font-semibold text-foreground">시간대별 등록 추이</h3>
+                  <div style={{ height: Math.max(160, Math.min(240, timeStats.length * 28)) }}>
                     <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={timeStats}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(210, 18%, 90%)" />
-                        <XAxis dataKey="time" tick={{ fontSize: 12 }} />
-                        <YAxis allowDecimals={false} tick={{ fontSize: 12 }} />
-                        <Tooltip />
-                        <Bar dataKey="count" fill="hsl(221, 80%, 48%)" radius={[4, 4, 0, 0]} name="등록 수" />
+                      <BarChart data={timeStats} margin={{ top: 4, right: 8, left: -12, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                        <XAxis
+                          dataKey="time"
+                          tick={{ fontSize: timeStats.length > 10 ? 9 : 10 }}
+                          interval={timeStats.length > 12 ? 1 : 0}
+                          angle={timeStats.length > 8 ? -45 : 0}
+                          textAnchor={timeStats.length > 8 ? 'end' : 'middle'}
+                          height={timeStats.length > 8 ? 40 : 24}
+                        />
+                        <YAxis allowDecimals={false} tick={{ fontSize: 10 }} width={30} />
+                        <Tooltip contentStyle={{ fontSize: '11px' }} />
+                        <Bar
+                          dataKey="count"
+                          fill="hsl(var(--primary))"
+                          radius={[3, 3, 0, 0]}
+                          name="등록 수"
+                          maxBarSize={timeStats.length < 4 ? 48 : undefined}
+                        />
                       </BarChart>
                     </ResponsiveContainer>
                   </div>
