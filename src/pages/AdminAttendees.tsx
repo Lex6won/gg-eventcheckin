@@ -155,6 +155,45 @@ const AdminAttendees = () => {
         </Button>
       </div>
 
+      <div className="flex flex-wrap gap-3 items-center">
+        <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+          <Filter className="w-4 h-4" />
+          <span>필터</span>
+        </div>
+        <Select value={selectedEvent} onValueChange={setSelectedEvent}>
+          <SelectTrigger className="w-[200px] bg-card">
+            <SelectValue placeholder="행사 선택" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">전체 행사</SelectItem>
+            {eventTitles.map(t => (
+              <SelectItem key={t} value={t}>{t}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select value={selectedDate} onValueChange={setSelectedDate}>
+          <SelectTrigger className="w-[160px] bg-card">
+            <SelectValue placeholder="날짜 선택" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">전체 날짜</SelectItem>
+            {eventDates.map(d => (
+              <SelectItem key={d} value={d}>{d}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {(selectedEvent !== 'all' || selectedDate !== 'all') && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => { setSelectedEvent('all'); setSelectedDate('all'); }}
+            className="text-muted-foreground"
+          >
+            초기화
+          </Button>
+        )}
+      </div>
+
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
         <Input
