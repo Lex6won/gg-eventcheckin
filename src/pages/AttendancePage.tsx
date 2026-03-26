@@ -205,6 +205,23 @@ const AttendancePage = () => {
     );
   }
 
+  const resetForm = () => {
+    setForm({
+      org_type: '',
+      custom_org_type: '',
+      organization: '',
+      department: '',
+      position: '',
+      name: '',
+      car_number: '',
+      inquiry: '',
+      privacy_agreed: false,
+    });
+    setErrors({});
+    setSuccess(false);
+    setTimeout(resizeCanvas, 100);
+  };
+
   if (success) {
     return (
       <div className="min-h-svh bg-background flex items-center justify-center p-4">
@@ -216,9 +233,14 @@ const AttendancePage = () => {
           <p className="text-muted-foreground text-sm leading-relaxed">
             참석 등록이 정상적으로 완료되었습니다.<br />즐거운 교육 되시기 바랍니다.
           </p>
-          <Button className="mt-4 px-8 h-12 text-base rounded-xl" onClick={() => window.location.href = '/'}>
-            확인
-          </Button>
+          <div className="flex flex-col gap-3 mt-4">
+            <Button className="px-8 h-12 text-base rounded-xl" onClick={resetForm}>
+              추가참석 등록
+            </Button>
+            <Button variant="outline" className="px-8 h-12 text-base rounded-xl" onClick={() => window.location.href = '/'}>
+              확인
+            </Button>
+          </div>
         </div>
       </div>
     );
