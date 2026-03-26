@@ -1,11 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@/lib/auth';
 import { supabase } from '@/integrations/supabase/client';
-import { Loader2, Users, Search, FileSpreadsheet, FileText } from 'lucide-react';
+import { Loader2, Users, Search, FileSpreadsheet, FileText, Filter } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { exportAllAttendeesToExcel, exportAllAttendeesToPDF } from '@/lib/exportAttendees';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 interface AttendeeRow {
   id: string;
@@ -25,12 +26,24 @@ const AdminAttendees = () => {
   const [attendees, setAttendees] = useState<AttendeeRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [selectedEvent, setSelectedEvent] = useState<string>('all');
+  const [selectedDate, setSelectedDate] = useState<string>('all');
   const [exportingExcel, setExportingExcel] = useState(false);
   const [exportingPdf, setExportingPdf] = useState(false);
 
+  // Derive unique event titles and dates for filters
+  const eventTitles = useMemo(() => {
+    const titles = [...new Set(attendees.map(a => a.event_title))];
+    return titles.sort();
+  }, [attendees]);
+
+  const eventDates = useMemo(() => {
+    const dates = [...new Set(attendees.map(a => a.event_date))];
+    return dates.sort().reverse();
+  }, [attendees]);
+
   useEffect(() => {
     const fetch = async () => {
-      // Get events (filtered by ownership for regular admins)
       let eventsQuery = supabase.from('events').select('id, title, event_date');
       if (!isSuperAdmin && user) {
         eventsQuery = eventsQuery.eq('created_by', user.id);
@@ -66,13 +79,23 @@ const AdminAttendees = () => {
     if (user) fetch();
   }, [user, isSuperAdmin]);
 
-  const filtered = search
-    ? attendees.filter(a =>
+  const filtered = useMemo(() => {
+    let result = attendees;
+    if (selectedEvent !== 'all') {
+      result = result.filter(a => a.event_title === selectedEvent);
+    }
+    if (selectedDate !== 'all') {
+      result = result.filter(a => a.event_date === selectedDate);
+    }
+    if (search) {
+      result = result.filter(a =>
         a.name.includes(search) ||
         a.organization.includes(search) ||
         a.event_title.includes(search)
-      )
-    : attendees;
+      );
+    }
+    return result;
+  }, [attendees, selectedEvent, selectedDate, search]);
 
   const handleExportExcel = async () => {
     setExportingExcel(true);
@@ -130,6 +153,45 @@ const AdminAttendees = () => {
           {exportingPdf ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <FileText className="w-4 h-4 mr-1" />}
           PDF 다운로드
         </Button>
+      </div>
+
+      <div className="flex flex-wrap gap-3 items-center">
+        <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+          <Filter className="w-4 h-4" />
+          <span>필터</span>
+        </div>
+        <Select value={selectedEvent} onValueChange={setSelectedEvent}>
+          <SelectTrigger className="w-[200px] bg-card">
+            <SelectValue placeholder="행사 선택" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">전체 행사</SelectItem>
+            {eventTitles.map(t => (
+              <SelectItem key={t} value={t}>{t}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select value={selectedDate} onValueChange={setSelectedDate}>
+          <SelectTrigger className="w-[160px] bg-card">
+            <SelectValue placeholder="날짜 선택" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">전체 날짜</SelectItem>
+            {eventDates.map(d => (
+              <SelectItem key={d} value={d}>{d}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {(selectedEvent !== 'all' || selectedDate !== 'all') && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => { setSelectedEvent('all'); setSelectedDate('all'); }}
+            className="text-muted-foreground"
+          >
+            초기화
+          </Button>
+        )}
       </div>
 
       <div className="relative">
