@@ -45,6 +45,7 @@ const AttendancePage = () => {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [form, setForm] = useState({
     org_type: '',
+    custom_org_type: '',
     organization: '',
     department: '',
     position: '',
@@ -95,6 +96,7 @@ const AttendancePage = () => {
   const validate = (): boolean => {
     const e: Record<string, string> = {};
     if (!form.org_type) e.org_type = '소속 구분을 선택해주세요.';
+    if (form.org_type === '직접입력' && !form.custom_org_type.trim()) e.custom_org_type = '소속 구분을 입력해주세요.';
     if (!form.organization.trim()) e.organization = '기관명을 입력해주세요.';
     if (!form.department.trim()) e.department = '부서명을 입력해주세요.';
     if (!form.position.trim()) e.position = '직급(위)을 입력해주세요.';
@@ -117,9 +119,10 @@ const AttendancePage = () => {
       if (existing) { setAlreadyRegistered(true); setSubmitting(false); return; }
 
       const signatureDataUrl = sigCanvas.current!.toDataURL('image/png');
+      const finalOrgType = form.org_type === '직접입력' ? form.custom_org_type.trim() : form.org_type;
       const { error: insertError } = await supabase.from('attendees').insert({
         event_id: event.id,
-        org_type: form.org_type,
+        org_type: finalOrgType,
         organization: form.organization.trim(),
         department: form.department.trim(),
         position: form.position.trim() || null,
@@ -213,7 +216,7 @@ const AttendancePage = () => {
           <p className="text-muted-foreground text-sm leading-relaxed">
             참석 등록이 정상적으로 완료되었습니다.<br />즐거운 교육 되시기 바랍니다.
           </p>
-          <Button className="mt-4 px-8 h-12 text-base rounded-xl" onClick={() => window.close()}>
+          <Button className="mt-4 px-8 h-12 text-base rounded-xl" onClick={() => window.location.href = '/'}>
             확인
           </Button>
         </div>
@@ -287,6 +290,17 @@ const AttendancePage = () => {
                 ))}
               </div>
               {errors.org_type && <p className="text-xs text-destructive">{errors.org_type}</p>}
+              {form.org_type === '직접입력' && (
+                <div className="mt-2">
+                  <Input
+                    value={form.custom_org_type}
+                    onChange={(e) => updateField('custom_org_type', e.target.value)}
+                    placeholder="소속 구분을 직접 입력해주세요"
+                    className={`h-12 bg-secondary/50 border-border/60 ${errors.custom_org_type ? 'border-destructive' : ''}`}
+                  />
+                  {errors.custom_org_type && <p className="text-xs text-destructive mt-1">{errors.custom_org_type}</p>}
+                </div>
+              )}
             </div>
 
             {/* 2. 기관명 */}
