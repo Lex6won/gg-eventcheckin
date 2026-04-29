@@ -44,6 +44,41 @@ interface ExportOptions {
   showCarNumber?: boolean;
 }
 
+export interface TraineeRow {
+  id: string;
+  org_type: string | null;
+  organization: string;
+  department: string | null;
+  position: string | null;
+  name: string;
+  car_number: string | null;
+  signature_url: string;
+  status: string;
+  registered_at: string;
+  confirmed_at: string | null;
+}
+
+export interface TrainingExportData {
+  title: string;
+  event_date: string;
+  start_time: string;
+  end_time: string;
+  location: string;
+  organizer: string;
+  instructor?: string | null;
+}
+
+const STATUS_LABEL: Record<string, string> = {
+  confirmed: '확정',
+  waitlisted: '대기',
+  cancelled: '취소',
+};
+
+const formatRegisteredAt = (t: TraineeRow) => {
+  const d = t.confirmed_at || t.registered_at;
+  return d ? new Date(d).toLocaleString('ko-KR', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '-';
+};
+
 const formatTime = (t: string) => t?.slice(0, 5) || '';
 const formatCheckedIn = (d: string | null) =>
   d ? new Date(d).toLocaleString('ko-KR', { hour: '2-digit', minute: '2-digit' }) : '-';
