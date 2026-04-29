@@ -14,6 +14,11 @@ import AdminEventAttendees from "./pages/AdminEventAttendees";
 import AdminAttendees from "./pages/AdminAttendees";
 import AdminSettings from "./pages/AdminSettings";
 import AdminEventQR from "./pages/AdminEventQR";
+import AdminTrainings from "./pages/AdminTrainings";
+import AdminTrainingDetail from "./pages/AdminTrainingDetail";
+import AdminTrainingTrainees from "./pages/AdminTrainingTrainees";
+import AdminTrainingQR from "./pages/AdminTrainingQR";
+import TrainingRegisterPage from "./pages/TrainingRegisterPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -29,6 +34,8 @@ const App = () => (
             <Route path="/" element={<Index />} />
             <Route path="/attend/:accessCode" element={<AttendancePage />} />
             <Route path="/attend" element={<AttendancePage />} />
+            <Route path="/training/:accessCode" element={<TrainingRegisterPage />} />
+            <Route path="/training" element={<TrainingRegisterPage />} />
             <Route path="/admin/login" element={<AdminLogin />} />
             <Route path="/admin" element={<AdminLayout />}>
               <Route index element={<Navigate to="/admin/events" replace />} />
@@ -37,6 +44,10 @@ const App = () => (
               <Route path="events/:eventId" element={<AdminEventDetail />} />
               <Route path="events/:eventId/attendees" element={<AdminEventAttendees />} />
               <Route path="events/:eventId/qr" element={<AdminEventQR />} />
+              <Route path="trainings" element={<AdminTrainings />} />
+              <Route path="trainings/:trainingId" element={<AdminTrainingDetail />} />
+              <Route path="trainings/:trainingId/trainees" element={<AdminTrainingTrainees />} />
+              <Route path="trainings/:trainingId/qr" element={<AdminTrainingQR />} />
               <Route path="attendees" element={<AdminAttendees />} />
               <Route path="settings" element={<AdminSettings />} />
             </Route>
