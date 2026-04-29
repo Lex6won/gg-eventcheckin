@@ -30,7 +30,9 @@ export type Database = {
           phone: string | null
           position: string | null
           privacy_agreed: boolean
-          signature_url: string
+          registered_at: string
+          signature_url: string | null
+          status: string
         }
         Insert: {
           car_number?: string | null
@@ -47,7 +49,9 @@ export type Database = {
           phone?: string | null
           position?: string | null
           privacy_agreed?: boolean
-          signature_url: string
+          registered_at?: string
+          signature_url?: string | null
+          status?: string
         }
         Update: {
           car_number?: string | null
@@ -64,7 +68,9 @@ export type Database = {
           phone?: string | null
           position?: string | null
           privacy_agreed?: boolean
-          signature_url?: string
+          registered_at?: string
+          signature_url?: string | null
+          status?: string
         }
         Relationships: [
           {
@@ -160,6 +166,7 @@ export type Database = {
           confirmed_at: string | null
           created_at: string | null
           department: string | null
+          email: string | null
           id: string
           inquiry: string | null
           name: string
@@ -177,6 +184,7 @@ export type Database = {
           confirmed_at?: string | null
           created_at?: string | null
           department?: string | null
+          email?: string | null
           id?: string
           inquiry?: string | null
           name: string
@@ -194,6 +202,7 @@ export type Database = {
           confirmed_at?: string | null
           created_at?: string | null
           department?: string | null
+          email?: string | null
           id?: string
           inquiry?: string | null
           name?: string
@@ -305,6 +314,18 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      checkin_attendee: {
+        Args: { p_email: string; p_event_id: string; p_signature_url: string }
+        Returns: Json
+      }
+      checkin_trainee: {
+        Args: {
+          p_email: string
+          p_signature_url: string
+          p_training_id: string
+        }
+        Returns: Json
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -316,10 +337,74 @@ export type Database = {
         Args: { p_trainee_id: string }
         Returns: Json
       }
-      register_trainee: {
+      register_attendee_pre: {
         Args: {
           p_car_number: string
           p_department: string
+          p_email: string
+          p_event_id: string
+          p_name: string
+          p_org_type: string
+          p_organization: string
+          p_phone: string
+          p_position: string
+          p_privacy_agreed: boolean
+        }
+        Returns: Json
+      }
+      register_trainee:
+        | {
+            Args: {
+              p_car_number: string
+              p_department: string
+              p_inquiry: string
+              p_name: string
+              p_org_type: string
+              p_organization: string
+              p_position: string
+              p_privacy_agreed: boolean
+              p_signature_url: string
+              p_training_id: string
+            }
+            Returns: Json
+          }
+        | {
+            Args: {
+              p_car_number: string
+              p_department: string
+              p_email?: string
+              p_inquiry: string
+              p_name: string
+              p_org_type: string
+              p_organization: string
+              p_position: string
+              p_privacy_agreed: boolean
+              p_signature_url: string
+              p_training_id: string
+            }
+            Returns: Json
+          }
+      walk_in_attendee: {
+        Args: {
+          p_car_number: string
+          p_department: string
+          p_email: string
+          p_event_id: string
+          p_name: string
+          p_org_type: string
+          p_organization: string
+          p_phone: string
+          p_position: string
+          p_privacy_agreed: boolean
+          p_signature_url: string
+        }
+        Returns: Json
+      }
+      walk_in_trainee: {
+        Args: {
+          p_car_number: string
+          p_department: string
+          p_email: string
           p_inquiry: string
           p_name: string
           p_org_type: string
