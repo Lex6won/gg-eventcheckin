@@ -11,7 +11,7 @@ import {
 import {
   ArrowLeft, Loader2, Calendar, Clock, MapPin, User, Hash, Users,
   Copy, QrCode, Trash2, Pencil, Download, FileImage, BarChart3,
-  ImagePlus, X, CheckCircle2, FileSpreadsheet, FileText, Maximize2,
+  ImagePlus, X, CheckCircle2, FileSpreadsheet, FileText, Maximize2, ScanLine,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { QRCodeSVG } from 'qrcode.react';
@@ -320,6 +320,9 @@ const AdminTrainingDetail = () => {
               </Button>
               <Button size="sm" variant="outline" onClick={() => navigate(`/admin/trainings/${trainingId}/qr`)}>
                 <Maximize2 className="w-4 h-4 mr-1" />QR 전체화면
+              </Button>
+              <Button size="sm" onClick={() => navigate(`/admin/trainings/${trainingId}/checkin`)} className="bg-success hover:bg-success/90 text-success-foreground">
+                <ScanLine className="w-4 h-4 mr-1" />현장 체크인
               </Button>
               <Button size="sm" variant="outline" onClick={handleDownloadQR}>
                 <Download className="w-4 h-4 mr-1" />QR 이미지
