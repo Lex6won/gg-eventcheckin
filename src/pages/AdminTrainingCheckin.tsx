@@ -6,11 +6,13 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ArrowLeft, Mail, Loader2, CheckCircle2, RotateCcw } from 'lucide-react';
 import { toast } from 'sonner';
+import { useKioskIdleLogout } from '@/hooks/useKioskIdleLogout';
 
 interface TrainingData { id: string; title: string; }
 interface Counts { registered: number; confirmed: number; walk_in: number; waitlisted: number; }
 
 const AdminTrainingCheckin = () => {
+  useKioskIdleLogout();
   const { trainingId } = useParams<{ trainingId: string }>();
   const [training, setTraining] = useState<TrainingData | null>(null);
   const [counts, setCounts] = useState<Counts>({ registered: 0, confirmed: 0, walk_in: 0, waitlisted: 0 });
@@ -63,11 +65,16 @@ const AdminTrainingCheckin = () => {
   const handleLookup = async (ev: React.FormEvent) => {
     ev.preventDefault();
     if (!training || !email.trim()) return;
+    const q = email.trim();
     setSubmitting(true);
     try {
-      const { data } = await supabase.from('trainees').select('name, organization, status')
-        .eq('training_id', training.id).eq('email', email.trim().toLowerCase()).neq('status','cancelled').maybeSingle();
-      if (!data) { toast.warning('사전 신청 내역이 없습니다.'); return; }
+      const { data: lookup } = await supabase.rpc('lookup_trainee', {
+        p_training_id: training.id, p_query: q,
+      });
+      const r = lookup as any;
+      if (r?.status === 'not_found') { toast.warning('사전 신청 내역이 없습니다.'); return; }
+      if (r?.status === 'multiple') { toast.warning('동일 조건의 신청자가 여러 명입니다. 6자리 코드로 입력해주세요.'); return; }
+      const data = r.trainee as { name: string; organization: string; status: string };
       if (data.status === 'confirmed' || data.status === 'walk_in') {
         toast.info(`${data.name}님은 이미 체크인 완료되었습니다.`);
         setEmail(''); emailRef.current?.focus(); return;
@@ -133,11 +140,11 @@ const AdminTrainingCheckin = () => {
           <form onSubmit={handleLookup} className="space-y-4">
             <div className="bg-card rounded-xl shadow-card p-5 space-y-4">
               <label className="text-base font-semibold text-foreground flex items-center gap-1.5">
-                <Mail className="w-5 h-5 text-primary" />이메일 입력
+                <Mail className="w-5 h-5 text-primary" />이메일 또는 6자리 코드
               </label>
-              <Input ref={emailRef} type="email" inputMode="email" autoFocus
+              <Input ref={emailRef} type="text" inputMode="email" autoFocus
                 value={email} onChange={(e) => setEmail(e.target.value)}
-                placeholder="participant@example.com"
+                placeholder="이메일 또는 보조 코드"
                 className="h-16 text-lg bg-secondary/50 border-border/60" />
               <Button type="submit" disabled={submitting || !email.trim()} className="w-full h-14 text-base font-semibold rounded-xl">
                 {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : '확인'}
