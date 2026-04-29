@@ -33,6 +33,7 @@ const AdminTrainingQR = () => {
   useEffect(() => { if (user) fetchTraining(); }, [user, fetchTraining]);
 
   const url = `${getPublicOrigin()}/training/${training?.access_code}`;
+  const registerUrl = `${getPublicOrigin()}/register/${training?.access_code}`;
 
   if (loading || authLoading) {
     return <div className="flex items-center justify-center min-h-screen bg-white"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
@@ -49,21 +50,29 @@ const AdminTrainingQR = () => {
           <Printer className="w-4 h-4 mr-1" />인쇄
         </Button>
       </div>
-      <div className="flex-1 flex flex-col items-center justify-center p-8 gap-8">
+      <div className="flex-1 flex flex-col items-center justify-center p-6 gap-6">
         <div className="text-center space-y-2">
-          <h1 className="text-3xl md:text-4xl font-bold text-foreground tracking-tight">{training?.title}</h1>
-          <p className="text-lg text-muted-foreground">
+          <h1 className="text-2xl md:text-3xl font-bold text-foreground tracking-tight">{training?.title}</h1>
+          <p className="text-base text-muted-foreground">
             {training?.event_date} &nbsp; {training?.start_time?.slice(0, 5)} ~ {training?.end_time?.slice(0, 5)}
           </p>
-          <p className="text-lg text-muted-foreground">{training?.location}</p>
+          <p className="text-base text-muted-foreground">{training?.location}</p>
         </div>
-        <div className="bg-white p-6 rounded-2xl shadow-lg border border-border/30">
-          <QRCodeSVG value={url} size={320} level="H" includeMargin />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full max-w-3xl">
+          <div className="bg-white p-5 rounded-2xl shadow-lg border border-border/30 flex flex-col items-center gap-3">
+            <span className="text-sm font-semibold bg-primary/10 text-primary px-3 py-1 rounded-full">사전 신청</span>
+            <QRCodeSVG value={registerUrl} size={240} level="H" includeMargin />
+            <p className="text-xs text-muted-foreground text-center break-all">{registerUrl}</p>
+          </div>
+          <div className="bg-white p-5 rounded-2xl shadow-lg border border-border/30 flex flex-col items-center gap-3">
+            <span className="text-sm font-semibold bg-success/10 text-success px-3 py-1 rounded-full">현장 체크인</span>
+            <QRCodeSVG value={url} size={240} level="H" includeMargin />
+            <p className="text-xs text-muted-foreground text-center break-all">{url}</p>
+          </div>
         </div>
-        <div className="text-center space-y-2">
-          <p className="text-xl md:text-2xl font-semibold text-primary">스마트폰으로 QR코드를 스캔해주세요</p>
-          <p className="text-sm text-muted-foreground">카메라 앱으로 QR코드를 비추면 교육 신청 페이지로 이동합니다</p>
-        </div>
+        <p className="text-sm text-muted-foreground text-center">
+          사전 신청은 교육 전, 현장 체크인은 교육 당일 사용해주세요.
+        </p>
       </div>
     </div>
   );
