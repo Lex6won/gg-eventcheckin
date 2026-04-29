@@ -2,11 +2,12 @@ import { useEffect } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/lib/auth';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { Calendar, Users, Settings, LogOut, Loader2 } from 'lucide-react';
+import { Calendar, Users, Settings, LogOut, Loader2, GraduationCap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 const navItems = [
   { label: '행사 관리', icon: Calendar, path: '/admin/events' },
+  { label: '교육 관리', icon: GraduationCap, path: '/admin/trainings' },
   { label: '참석자 현황', icon: Users, path: '/admin/attendees' },
   { label: '설정', icon: Settings, path: '/admin/settings' },
 ];
