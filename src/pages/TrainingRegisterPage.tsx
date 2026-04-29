@@ -291,11 +291,11 @@ const TrainingRegisterPage = () => {
             <div className="bg-card rounded-xl shadow-card p-5 space-y-4 animate-fade-in">
               <div>
                 <label className="text-sm font-semibold text-foreground flex items-center gap-1.5 mb-2">
-                  <Mail className="w-4 h-4 text-primary" />이메일로 확인
+                  <Mail className="w-4 h-4 text-primary" />이메일 또는 6자리 코드로 확인
                 </label>
-                <Input type="email" inputMode="email" autoComplete="email" autoFocus
+                <Input type="text" inputMode="email" autoComplete="email" autoFocus
                   value={email} onChange={(e) => setEmail(e.target.value)}
-                  placeholder="사전 신청 시 사용한 이메일"
+                  placeholder="사전 신청 이메일 또는 보조 코드(예: 123456)"
                   className={`h-12 bg-secondary/50 border-border/60 ${errors.email ? 'border-destructive' : ''}`} />
                 {errors.email && <p className="text-xs text-destructive mt-1">{errors.email}</p>}
               </div>
