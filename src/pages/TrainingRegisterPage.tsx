@@ -93,20 +93,27 @@ const TrainingRegisterPage = () => {
   const handleEmailLookup = async (ev: React.FormEvent) => {
     ev.preventDefault();
     if (!training) return;
-    if (!email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
-      setErrors({ email: '올바른 이메일을 입력해주세요.' }); return;
+    const q = email.trim();
+    if (!q) { setErrors({ email: '이메일 또는 6자리 코드를 입력해주세요.' }); return; }
+    const isCode = /^[0-9]{6}$/.test(q);
+    const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(q);
+    if (!isCode && !isEmail) {
+      setErrors({ email: '이메일 형식 또는 6자리 숫자 코드를 입력해주세요.' }); return;
     }
     setErrors({});
     setSubmitting(true);
     try {
-      const { data, error } = await supabase.from('trainees')
-        .select('name, organization, status')
-        .eq('training_id', training.id)
-        .eq('email', email.trim().toLowerCase())
-        .neq('status', 'cancelled')
-        .maybeSingle();
+      const { data: lookup, error } = await supabase.rpc('lookup_trainee', {
+        p_training_id: training.id, p_query: q,
+      });
       if (error) throw error;
-      if (!data) { setStep('walkin'); return; }
+      const r = lookup as any;
+      if (r.status === 'not_found') { setStep('walkin'); return; }
+      if (r.status === 'multiple') {
+        setErrors({ email: '같은 조건의 신청자가 여러 명입니다. 이메일 또는 6자리 코드로 정확히 입력해주세요.' });
+        return;
+      }
+      const data = r.trainee as { name: string; organization: string; status: string };
       if (data.status === 'confirmed' || data.status === 'walk_in') {
         setAlreadyDone({ name: data.name });
         return;
