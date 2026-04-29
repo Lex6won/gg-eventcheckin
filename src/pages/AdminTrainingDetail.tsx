@@ -1,18 +1,34 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '@/lib/auth';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Input } from '@/components/ui/input';
-import { ArrowLeft, Loader2, Calendar, Clock, MapPin, User, Hash, Users, ClipboardCopy, QrCode, Trash2 } from 'lucide-react';
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle,
+} from '@/components/ui/dialog';
+import {
+  ArrowLeft, Loader2, Calendar, Clock, MapPin, User, Hash, Users,
+  Copy, QrCode, Trash2, Pencil, Download, FileImage, BarChart3,
+  ImagePlus, X, CheckCircle2, FileSpreadsheet, FileText, Maximize2,
+} from 'lucide-react';
 import { toast } from 'sonner';
+import { QRCodeSVG } from 'qrcode.react';
 import { getPublicOrigin } from '@/lib/getPublicUrl';
+import { downloadQRImage, downloadQRPoster } from '@/lib/qrExport';
+import {
+  exportTraineesToExcel, exportTraineesToPDF, type TraineeRow,
+} from '@/lib/exportAttendees';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  PieChart, Pie, Cell, Legend,
+} from 'recharts';
 
 interface Training {
   id: string;
@@ -35,33 +51,91 @@ interface Training {
 
 const STATUSES = ['예정', '진행중', '완료'] as const;
 
+const CHART_COLORS = [
+  'hsl(221, 80%, 48%)',
+  'hsl(160, 84%, 29%)',
+  'hsl(38, 92%, 50%)',
+  'hsl(0, 72%, 51%)',
+  'hsl(262, 52%, 47%)',
+  'hsl(190, 90%, 35%)',
+  'hsl(30, 80%, 55%)',
+  'hsl(330, 70%, 50%)',
+];
+
 const AdminTrainingDetail = () => {
   const { trainingId } = useParams<{ trainingId: string }>();
   const { user } = useAuth();
   const navigate = useNavigate();
   const [training, setTraining] = useState<Training | null>(null);
-  const [confirmedCount, setConfirmedCount] = useState(0);
-  const [waitlistedCount, setWaitlistedCount] = useState(0);
+  const [trainees, setTrainees] = useState<TraineeRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [editingCapacity, setEditingCapacity] = useState(false);
-  const [capacityInput, setCapacityInput] = useState('');
+  const [showEdit, setShowEdit] = useState(false);
+  const [showStats, setShowStats] = useState(false);
+  const [showPosterZoom, setShowPosterZoom] = useState(false);
+  const [editForm, setEditForm] = useState<Partial<Training>>({});
+  const [editPosterFile, setEditPosterFile] = useState<File | null>(null);
+  const [editPosterPreview, setEditPosterPreview] = useState<string | null>(null);
+  const [removePosterFlag, setRemovePosterFlag] = useState(false);
+  const editFileInputRef = useRef<HTMLInputElement>(null);
+  const [saving, setSaving] = useState(false);
+  const qrRef = useRef<HTMLDivElement>(null);
 
   const fetchData = useCallback(async () => {
     if (!trainingId) return;
-    const { data, error } = await supabase.from('trainings').select('*').eq('id', trainingId).single();
-    if (error || !data) { navigate('/admin/trainings'); return; }
-    setTraining(data);
-    setCapacityInput(String(data.capacity ?? ''));
-    const [{ count: c }, { count: w }] = await Promise.all([
-      supabase.from('trainees').select('*', { count: 'exact', head: true }).eq('training_id', trainingId).eq('status', 'confirmed'),
-      supabase.from('trainees').select('*', { count: 'exact', head: true }).eq('training_id', trainingId).eq('status', 'waitlisted'),
+    const [tRes, trRes] = await Promise.all([
+      supabase.from('trainings').select('*').eq('id', trainingId).single(),
+      supabase.from('trainees').select('*').eq('training_id', trainingId).order('registered_at', { ascending: true }),
     ]);
-    setConfirmedCount(c ?? 0);
-    setWaitlistedCount(w ?? 0);
+    if (tRes.error || !tRes.data) { navigate('/admin/trainings'); return; }
+    setTraining(tRes.data as Training);
+    setTrainees((trRes.data || []) as TraineeRow[]);
     setLoading(false);
   }, [trainingId, navigate]);
 
   useEffect(() => { if (user) fetchData(); }, [user, fetchData]);
+
+  const counts = useMemo(() => ({
+    confirmed: trainees.filter((t) => t.status === 'confirmed').length,
+    waitlisted: trainees.filter((t) => t.status === 'waitlisted').length,
+    cancelled: trainees.filter((t) => t.status === 'cancelled').length,
+  }), [trainees]);
+
+  // Stats
+  const orgStats = useMemo(() => {
+    const map = new Map<string, number>();
+    trainees.filter((t) => t.status !== 'cancelled').forEach((t) => {
+      map.set(t.organization, (map.get(t.organization) || 0) + 1);
+    });
+    return Array.from(map.entries())
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 8);
+  }, [trainees]);
+
+  const timeStats = useMemo(() => {
+    const map = new Map<string, number>();
+    trainees.forEach((t) => {
+      const d = new Date(t.registered_at);
+      const hour = d.getHours();
+      const min = d.getMinutes();
+      const label = `${String(hour).padStart(2, '0')}:${min < 30 ? '00' : '30'}`;
+      map.set(label, (map.get(label) || 0) + 1);
+    });
+    return Array.from(map.entries())
+      .map(([time, count]) => ({ time, count }))
+      .sort((a, b) => a.time.localeCompare(b.time));
+  }, [trainees]);
+
+  const statusStats = useMemo(() => {
+    const data = [
+      { name: '확정', value: counts.confirmed },
+      { name: '대기', value: counts.waitlisted },
+      { name: '취소', value: counts.cancelled },
+    ].filter((d) => d.value > 0);
+    return data;
+  }, [counts]);
+
+  const attendUrl = `${getPublicOrigin()}/training/${training?.access_code ?? ''}`;
 
   const updateStatus = async (status: string) => {
     const { error } = await supabase.from('trainings').update({ status }).eq('id', trainingId!);
@@ -69,18 +143,26 @@ const AdminTrainingDetail = () => {
     else { toast.success('상태가 변경되었습니다.'); fetchData(); }
   };
 
-  const toggleCarNumber = async (val: boolean) => {
-    const { error } = await supabase.from('trainings').update({ show_car_number: val }).eq('id', trainingId!);
-    if (error) toast.error('변경 실패');
-    else fetchData();
+  const copyLink = () => {
+    navigator.clipboard.writeText(attendUrl);
+    toast.success('링크가 복사되었습니다.');
   };
 
-  const updateCapacity = async () => {
-    const n = parseInt(capacityInput, 10);
-    if (!Number.isFinite(n) || n < 1) { toast.error('정원 수를 확인해주세요.'); return; }
-    const { error } = await supabase.from('trainings').update({ capacity: n }).eq('id', trainingId!);
-    if (error) toast.error('정원 변경 실패');
-    else { toast.success('정원이 변경되었습니다.'); setEditingCapacity(false); fetchData(); }
+  const handleDownloadQR = () => {
+    const svg = qrRef.current?.querySelector('svg') as SVGSVGElement | null;
+    if (!svg || !training) return;
+    downloadQRImage(svg, training.access_code);
+  };
+
+  const handleDownloadPoster = async () => {
+    const svg = qrRef.current?.querySelector('svg') as SVGSVGElement | null;
+    if (!svg || !training) return;
+    try {
+      await downloadQRPoster(training, svg);
+      toast.success('QR 포스터가 다운로드되었습니다.');
+    } catch {
+      toast.error('포스터 다운로드에 실패했습니다.');
+    }
   };
 
   const handleDelete = async () => {
@@ -89,10 +171,95 @@ const AdminTrainingDetail = () => {
     else { toast.success('교육이 삭제되었습니다.'); navigate('/admin/trainings'); }
   };
 
-  const copyLink = () => {
-    const url = `${getPublicOrigin()}/training/${training?.access_code}`;
-    navigator.clipboard.writeText(url);
-    toast.success('링크가 복사되었습니다.');
+  const openEdit = () => {
+    if (!training) return;
+    setEditForm({
+      title: training.title,
+      description: training.description || '',
+      event_date: training.event_date,
+      start_time: training.start_time,
+      end_time: training.end_time,
+      location: training.location,
+      organizer: training.organizer,
+      instructor: training.instructor || '',
+      status: training.status,
+      show_car_number: training.show_car_number,
+      capacity_enabled: training.capacity_enabled,
+      capacity: training.capacity,
+      allow_waitlist: training.allow_waitlist,
+    });
+    setEditPosterFile(null);
+    setEditPosterPreview(null);
+    setRemovePosterFlag(false);
+    setShowEdit(true);
+  };
+
+  const handleEditPosterSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) { toast.error('이미지 파일만 업로드 가능합니다.'); return; }
+    if (file.size > 5 * 1024 * 1024) { toast.error('파일 크기는 5MB 이하로 업로드해주세요.'); return; }
+    setEditPosterFile(file);
+    setEditPosterPreview(URL.createObjectURL(file));
+    setRemovePosterFlag(false);
+  };
+
+  const handleRemoveEditPoster = () => {
+    setEditPosterFile(null);
+    if (editPosterPreview) URL.revokeObjectURL(editPosterPreview);
+    setEditPosterPreview(null);
+    setRemovePosterFlag(true);
+    if (editFileInputRef.current) editFileInputRef.current.value = '';
+  };
+
+  const handleSaveEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      let poster_url: string | null = training?.poster_url || null;
+      if (editPosterFile) {
+        const ext = editPosterFile.name.split('.').pop();
+        const fileName = `training_${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
+        const { error: uploadError } = await supabase.storage
+          .from('event-posters').upload(fileName, editPosterFile, { contentType: editPosterFile.type });
+        if (uploadError) throw uploadError;
+        const { data: urlData } = supabase.storage.from('event-posters').getPublicUrl(fileName);
+        poster_url = urlData.publicUrl;
+      } else if (removePosterFlag) {
+        poster_url = null;
+      }
+
+      const payload: any = { ...editForm, poster_url };
+      if (payload.capacity != null && payload.capacity !== '') payload.capacity = Number(payload.capacity);
+      if (!payload.capacity_enabled) payload.capacity = null;
+
+      const { error } = await supabase.from('trainings').update(payload).eq('id', trainingId!);
+      if (error) throw error;
+      toast.success('교육이 수정되었습니다.');
+      setShowEdit(false);
+      fetchData();
+    } catch {
+      toast.error('수정에 실패했습니다.');
+    }
+    setSaving(false);
+  };
+
+  const updateEdit = (key: string, value: any) => setEditForm({ ...editForm, [key]: value });
+
+  const handleExportExcel = async () => {
+    if (!training) return;
+    try {
+      await exportTraineesToExcel(training, trainees, { showCarNumber: training.show_car_number });
+      toast.success('엑셀 파일이 다운로드되었습니다.');
+    } catch { toast.error('엑셀 다운로드에 실패했습니다.'); }
+  };
+
+  const handleExportPDF = async () => {
+    if (!training) return;
+    try {
+      await exportTraineesToPDF(training, trainees, { showCarNumber: training.show_car_number });
+      toast.success('PDF 파일이 다운로드되었습니다.');
+    } catch { toast.error('PDF 다운로드에 실패했습니다.'); }
   };
 
   if (loading || !training) {
@@ -100,105 +267,427 @@ const AdminTrainingDetail = () => {
   }
 
   const cap = training.capacity ?? 0;
-  const pct = training.capacity_enabled && cap > 0 ? Math.min(100, Math.round((confirmedCount / cap) * 100)) : 0;
+  const pct = training.capacity_enabled && cap > 0 ? Math.min(100, Math.round((counts.confirmed / cap) * 100)) : 0;
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-6 space-y-5">
+    <div className="max-w-5xl mx-auto px-4 py-6 space-y-5">
       <button onClick={() => navigate('/admin/trainings')}
         className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
         <ArrowLeft className="w-4 h-4" />교육 목록
       </button>
 
-      <div className="bg-card rounded-xl shadow-card p-5 space-y-4">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <h1 className="text-xl font-bold text-foreground">{training.title}</h1>
-            {training.description && <p className="text-sm text-muted-foreground mt-1">{training.description}</p>}
+      {/* Info card */}
+      <div className="bg-card rounded-xl shadow-sm border border-border/50 p-5 md:p-6 space-y-4 animate-fade-in">
+        <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-5">
+          <div className="space-y-3 flex-1">
+            <div className="flex items-start justify-between gap-2">
+              <h1 className="text-2xl font-bold text-foreground tracking-tight">{training.title}</h1>
+              <select value={training.status || '예정'} onChange={(e) => updateStatus(e.target.value)}
+                className="text-xs font-medium border border-border rounded-lg px-2 py-1 bg-background">
+                {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
+            {training.description && <p className="text-sm text-muted-foreground">{training.description}</p>}
+            <div className="flex flex-wrap gap-3 text-sm text-muted-foreground">
+              <span className="inline-flex items-center gap-1"><Calendar className="w-4 h-4" />{training.event_date}</span>
+              <span className="inline-flex items-center gap-1"><Clock className="w-4 h-4" />{training.start_time?.slice(0,5)} ~ {training.end_time?.slice(0,5)}</span>
+              <span className="inline-flex items-center gap-1"><MapPin className="w-4 h-4" />{training.location}</span>
+              <span className="inline-flex items-center gap-1"><User className="w-4 h-4" />{training.organizer}{training.instructor ? ` · 강사: ${training.instructor}` : ''}</span>
+            </div>
+            <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary/10 text-primary text-sm font-medium font-mono">
+              <Hash className="w-3.5 h-3.5" />{training.access_code}
+            </div>
+
+            {training.poster_url && (
+              <div className="pt-1">
+                <button type="button" onClick={() => setShowPosterZoom(true)}
+                  className="rounded-lg overflow-hidden border border-border hover:border-primary/50 transition-colors">
+                  <img src={training.poster_url} alt="교육 포스터" className="max-h-32 w-auto object-contain" />
+                </button>
+              </div>
+            )}
+
+            {/* Action buttons */}
+            <div className="flex flex-wrap gap-2 pt-2">
+              <Button size="sm" onClick={() => navigate(`/admin/trainings/${trainingId}/trainees`)}>
+                <Users className="w-4 h-4 mr-1" />신청자 ({counts.confirmed + counts.waitlisted})
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => setShowStats(true)}>
+                <BarChart3 className="w-4 h-4 mr-1" />통계
+              </Button>
+              <Button size="sm" variant="outline" onClick={copyLink}>
+                <Copy className="w-4 h-4 mr-1" />링크 복사
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => navigate(`/admin/trainings/${trainingId}/qr`)}>
+                <Maximize2 className="w-4 h-4 mr-1" />QR 전체화면
+              </Button>
+              <Button size="sm" variant="outline" onClick={handleDownloadQR}>
+                <Download className="w-4 h-4 mr-1" />QR 이미지
+              </Button>
+              <Button size="sm" variant="outline" onClick={handleDownloadPoster}>
+                <FileImage className="w-4 h-4 mr-1" />교육QR포스터
+              </Button>
+              <Button size="sm" variant="outline" onClick={openEdit}>
+                <Pencil className="w-4 h-4 mr-1" />수정
+              </Button>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button size="sm" variant="outline" className="text-destructive hover:text-destructive">
+                    <Trash2 className="w-4 h-4 mr-1" />삭제
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>교육을 삭제하시겠습니까?</AlertDialogTitle>
+                    <AlertDialogDescription>이 작업은 되돌릴 수 없습니다. 모든 신청자 정보도 함께 삭제됩니다.</AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>취소</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground">삭제</AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </div>
           </div>
-          <select value={training.status || '예정'} onChange={(e) => updateStatus(e.target.value)}
-            className="text-sm border border-border rounded-lg px-2.5 py-1.5 bg-background">
-            {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
-          </select>
-        </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm text-muted-foreground">
-          <span className="inline-flex items-center gap-1.5"><Calendar className="w-4 h-4" />{training.event_date}</span>
-          <span className="inline-flex items-center gap-1.5"><Clock className="w-4 h-4" />{training.start_time?.slice(0,5)} ~ {training.end_time?.slice(0,5)}</span>
-          <span className="inline-flex items-center gap-1.5"><MapPin className="w-4 h-4" />{training.location}</span>
-          <span className="inline-flex items-center gap-1.5"><User className="w-4 h-4" />{training.organizer}{training.instructor ? ` · 강사: ${training.instructor}` : ''}</span>
-          <span className="inline-flex items-center gap-1.5 font-mono"><Hash className="w-4 h-4" />{training.access_code}</span>
+          {/* QR */}
+          <div ref={qrRef} className="flex-shrink-0 bg-secondary/50 rounded-xl p-4 text-center space-y-2">
+            <QRCodeSVG value={attendUrl} size={160} level="H" />
+            <p className="text-xs text-muted-foreground">QR코드로 교육 신청</p>
+            <p className="text-[10px] text-muted-foreground/70 font-mono">{training.access_code}</p>
+          </div>
         </div>
+      </div>
 
-        <div className="flex flex-wrap gap-2 pt-2">
-          <Button size="sm" variant="outline" onClick={copyLink}><ClipboardCopy className="w-4 h-4 mr-1" />링크 복사</Button>
-          <Button size="sm" variant="outline" onClick={() => navigate(`/admin/trainings/${trainingId}/qr`)}><QrCode className="w-4 h-4 mr-1" />QR 코드</Button>
-          <Button size="sm" onClick={() => navigate(`/admin/trainings/${trainingId}/trainees`)}><Users className="w-4 h-4 mr-1" />신청자 명단</Button>
+      {/* Count cards */}
+      <div className="grid grid-cols-3 gap-3">
+        <div className="bg-card rounded-xl shadow-sm border border-border/50 p-4 flex items-center gap-3">
+          <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center"><CheckCircle2 className="w-5 h-5 text-primary" /></div>
+          <div>
+            <p className="text-2xl font-bold tabular-nums">{counts.confirmed}</p>
+            <p className="text-[11px] text-muted-foreground">확정</p>
+          </div>
+        </div>
+        <div className="bg-card rounded-xl shadow-sm border border-border/50 p-4 flex items-center gap-3">
+          <div className="w-10 h-10 rounded-lg bg-warning/10 flex items-center justify-center"><Clock className="w-5 h-5 text-warning" /></div>
+          <div>
+            <p className="text-2xl font-bold tabular-nums">{counts.waitlisted}</p>
+            <p className="text-[11px] text-muted-foreground">대기</p>
+          </div>
+        </div>
+        <div className="bg-card rounded-xl shadow-sm border border-border/50 p-4 flex items-center gap-3">
+          <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center"><X className="w-5 h-5 text-muted-foreground" /></div>
+          <div>
+            <p className="text-2xl font-bold tabular-nums">{counts.cancelled}</p>
+            <p className="text-[11px] text-muted-foreground">취소</p>
+          </div>
         </div>
       </div>
 
       {/* Capacity progress */}
-      <div className="bg-card rounded-xl shadow-card p-5 space-y-3">
-        <div className="flex items-center justify-between">
-          <h2 className="text-sm font-bold text-foreground">신청 현황</h2>
-          {training.capacity_enabled && (
-            editingCapacity ? (
-              <div className="flex items-center gap-2">
-                <Input type="number" min={1} value={capacityInput}
-                  onChange={(e) => setCapacityInput(e.target.value)} className="h-8 w-24" />
-                <Button size="sm" onClick={updateCapacity}>저장</Button>
-                <Button size="sm" variant="ghost" onClick={() => { setEditingCapacity(false); setCapacityInput(String(training.capacity ?? '')); }}>취소</Button>
-              </div>
-            ) : (
-              <Button size="sm" variant="ghost" onClick={() => setEditingCapacity(true)}>정원 수정</Button>
-            )
-          )}
+      {training.capacity_enabled && (
+        <div className="bg-card rounded-xl shadow-sm border border-border/50 p-5 space-y-3">
+          <div className="flex items-baseline justify-between text-sm">
+            <span className="text-foreground font-medium">확정 {counts.confirmed} / 정원 {cap}명 ({pct}%)</span>
+            <span className="text-muted-foreground">대기 {counts.waitlisted}명</span>
+          </div>
+          <div className="h-3 bg-secondary rounded-full overflow-hidden">
+            <div className="h-full bg-primary transition-all" style={{ width: `${pct}%` }} />
+          </div>
         </div>
-        {training.capacity_enabled ? (
-          <>
-            <div className="flex items-baseline justify-between text-sm">
-              <span className="text-foreground font-medium">확정 {confirmedCount} / 정원 {cap}명</span>
-              <span className="text-muted-foreground">대기 {waitlistedCount}명</span>
-            </div>
-            <div className="h-3 bg-secondary rounded-full overflow-hidden">
-              <div className="h-full bg-primary transition-all" style={{ width: `${pct}%` }} />
-            </div>
-          </>
+      )}
+
+      {/* Trainees Table */}
+      <div className="bg-card rounded-xl shadow-sm border border-border/50 overflow-hidden">
+        <div className="p-5 border-b border-border/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <h2 className="font-bold text-foreground flex items-center gap-2">
+            <Users className="w-5 h-5 text-primary" />신청자 명부
+            <span className="tabular-nums text-sm text-muted-foreground font-medium ml-1">총 {trainees.length}명</span>
+          </h2>
+          <div className="flex flex-wrap gap-2">
+            <Button size="sm" variant="outline" disabled={trainees.length === 0} onClick={handleExportExcel}>
+              <FileSpreadsheet className="w-4 h-4 mr-1" />엑셀
+            </Button>
+            <Button size="sm" variant="outline" disabled={trainees.length === 0} onClick={handleExportPDF}>
+              <FileText className="w-4 h-4 mr-1" />PDF
+            </Button>
+          </div>
+        </div>
+
+        {trainees.length === 0 ? (
+          <div className="p-12 text-center text-muted-foreground text-sm">아직 신청한 인원이 없습니다.</div>
         ) : (
-          <p className="text-sm text-muted-foreground">정원 제한 없음 — 신청 {confirmedCount}명</p>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-secondary/50 text-muted-foreground">
+                  <th className="px-4 py-3 text-left font-medium w-10">번호</th>
+                  <th className="px-4 py-3 text-left font-medium">상태</th>
+                  <th className="px-4 py-3 text-left font-medium">소속</th>
+                  <th className="px-4 py-3 text-left font-medium">성명</th>
+                  <th className="px-4 py-3 text-left font-medium">직급</th>
+                  <th className="px-4 py-3 text-left font-medium">서명</th>
+                  <th className="px-4 py-3 text-left font-medium">등록시간</th>
+                </tr>
+              </thead>
+              <tbody>
+                {trainees.map((t, i) => (
+                  <tr key={t.id} className="border-t border-border/30 hover:bg-secondary/30 transition-colors">
+                    <td className="px-4 py-3 tabular-nums text-muted-foreground">{i + 1}</td>
+                    <td className="px-4 py-3">
+                      <span className={`text-xs px-2 py-0.5 rounded-md ${
+                        t.status === 'confirmed' ? 'bg-primary/10 text-primary' :
+                        t.status === 'waitlisted' ? 'bg-warning/10 text-warning' :
+                        'bg-muted text-muted-foreground'
+                      }`}>
+                        {t.status === 'confirmed' ? '확정' : t.status === 'waitlisted' ? '대기' : '취소'}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-foreground">{t.organization}</td>
+                    <td className="px-4 py-3 font-medium text-foreground">{t.name}</td>
+                    <td className="px-4 py-3 text-muted-foreground">{t.position || '-'}</td>
+                    <td className="px-4 py-3">
+                      {t.signature_url && <img src={t.signature_url} alt={`${t.name} 서명`} className="h-8 w-auto" />}
+                    </td>
+                    <td className="px-4 py-3 tabular-nums text-muted-foreground text-xs">
+                      {new Date(t.confirmed_at || t.registered_at).toLocaleString('ko-KR', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
 
-      {/* Settings */}
-      <div className="bg-card rounded-xl shadow-card p-5 space-y-3">
-        <h2 className="text-sm font-bold text-foreground">설정</h2>
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-sm font-medium text-foreground">차량번호 입력</p>
-            <p className="text-xs text-muted-foreground">신청자에게 차량번호를 입력받습니다</p>
-          </div>
-          <Switch checked={training.show_car_number} onCheckedChange={toggleCarNumber} />
-        </div>
-      </div>
+      {/* Poster Zoom Dialog */}
+      <Dialog open={showPosterZoom} onOpenChange={setShowPosterZoom}>
+        <DialogContent className="sm:max-w-2xl p-2">
+          {training.poster_url && <img src={training.poster_url} alt="교육 포스터" className="w-full rounded-lg" />}
+        </DialogContent>
+      </Dialog>
 
-      <div className="flex justify-end">
-        <AlertDialog>
-          <AlertDialogTrigger asChild>
-            <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive">
-              <Trash2 className="w-4 h-4 mr-1" />교육 삭제
+      {/* Stats Dialog */}
+      <Dialog open={showStats} onOpenChange={setShowStats}>
+        <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-sm">
+              <BarChart3 className="w-4 h-4 text-primary" />신청자 통계
+              <span className="text-xs font-normal text-muted-foreground ml-1">(총 {trainees.length}명)</span>
+            </DialogTitle>
+          </DialogHeader>
+
+          {trainees.length === 0 ? (
+            <p className="text-center text-muted-foreground py-8 text-xs">신청자가 없어 통계를 표시할 수 없습니다.</p>
+          ) : (
+            <div className="space-y-6">
+              {/* Status distribution */}
+              {statusStats.length > 0 && (
+                <div className="space-y-2">
+                  <h3 className="text-xs font-semibold text-foreground">상태 분포</h3>
+                  <div style={{ height: 200 }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie data={statusStats} cx="50%" cy="50%" innerRadius={40} outerRadius={75} dataKey="value"
+                          label={({ name, value }) => `${name} (${value})`} fontSize={10}>
+                          {statusStats.map((_, i) => <Cell key={i} fill={CHART_COLORS[i]} />)}
+                        </Pie>
+                        <Tooltip contentStyle={{ fontSize: '11px' }} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              )}
+
+              {/* Capacity */}
+              {training.capacity_enabled && cap > 0 && (
+                <div className="space-y-2">
+                  <h3 className="text-xs font-semibold text-foreground">정원 충원율</h3>
+                  <div className="flex items-baseline justify-between text-xs text-muted-foreground">
+                    <span>{counts.confirmed} / {cap}명</span>
+                    <span>{pct}%</span>
+                  </div>
+                  <div className="h-3 bg-secondary rounded-full overflow-hidden">
+                    <div className="h-full bg-primary" style={{ width: `${pct}%` }} />
+                  </div>
+                </div>
+              )}
+
+              {/* Org chart */}
+              {orgStats.length > 0 && (
+                <div className="space-y-2">
+                  <h3 className="text-xs font-semibold text-foreground">소속별 신청 현황 (취소 제외)</h3>
+                  <div style={{ height: Math.max(180, Math.min(280, orgStats.length * 36)) }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie data={orgStats} cx="50%" cy="50%"
+                          innerRadius={orgStats.length > 5 ? 35 : 45}
+                          outerRadius={orgStats.length > 5 ? 65 : 80}
+                          paddingAngle={orgStats.length > 5 ? 1 : 2}
+                          dataKey="value"
+                          label={({ name, value }) => {
+                            const dn = name.length > 6 ? name.slice(0, 6) + '…' : name;
+                            return `${dn} (${value})`;
+                          }}
+                          fontSize={orgStats.length > 5 ? 9 : 10}>
+                          {orgStats.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
+                        </Pie>
+                        <Tooltip contentStyle={{ fontSize: '11px' }} />
+                        <Legend wrapperStyle={{ fontSize: '10px' }} iconSize={8} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              )}
+
+              {/* Time trend */}
+              {timeStats.length > 0 && (
+                <div className="space-y-2">
+                  <h3 className="text-xs font-semibold text-foreground">시간대별 신청 추이</h3>
+                  <div style={{ height: Math.max(160, Math.min(240, timeStats.length * 28)) }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={timeStats} margin={{ top: 4, right: 8, left: -12, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                        <XAxis dataKey="time"
+                          tick={{ fontSize: timeStats.length > 10 ? 9 : 10 }}
+                          interval={timeStats.length > 12 ? 1 : 0}
+                          angle={timeStats.length > 8 ? -45 : 0}
+                          textAnchor={timeStats.length > 8 ? 'end' : 'middle'}
+                          height={timeStats.length > 8 ? 40 : 24} />
+                        <YAxis allowDecimals={false} tick={{ fontSize: 10 }} width={30} />
+                        <Tooltip contentStyle={{ fontSize: '11px' }} />
+                        <Bar dataKey="count" fill="hsl(var(--primary))" radius={[3, 3, 0, 0]} name="신청 수"
+                          maxBarSize={timeStats.length < 4 ? 48 : undefined} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Dialog */}
+      <Dialog open={showEdit} onOpenChange={setShowEdit}>
+        <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>교육 수정</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleSaveEdit} className="space-y-4">
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-foreground">교육명 *</label>
+              <Input value={editForm.title || ''} onChange={(e) => updateEdit('title', e.target.value)} required />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-foreground">설명</label>
+              <Input value={editForm.description || ''} onChange={(e) => updateEdit('description', e.target.value)} />
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-foreground">날짜 *</label>
+                <Input type="date" value={editForm.event_date || ''} onChange={(e) => updateEdit('event_date', e.target.value)} required />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-foreground">시작 *</label>
+                <Input type="time" value={editForm.start_time || ''} onChange={(e) => updateEdit('start_time', e.target.value)} required />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-foreground">종료 *</label>
+                <Input type="time" value={editForm.end_time || ''} onChange={(e) => updateEdit('end_time', e.target.value)} required />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-foreground">장소 *</label>
+              <Input value={editForm.location || ''} onChange={(e) => updateEdit('location', e.target.value)} required />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-foreground">주관부서 *</label>
+                <Input value={editForm.organizer || ''} onChange={(e) => updateEdit('organizer', e.target.value)} required />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-foreground">강사</label>
+                <Input value={editForm.instructor || ''} onChange={(e) => updateEdit('instructor', e.target.value)} />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-foreground">상태</label>
+              <select value={editForm.status || '예정'} onChange={(e) => updateEdit('status', e.target.value)}
+                className="flex h-10 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm">
+                {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
+
+            <div className="flex items-center justify-between rounded-lg border border-border p-3">
+              <div>
+                <p className="text-sm font-medium text-foreground">차량번호 입력</p>
+                <p className="text-xs text-muted-foreground">신청자에게 차량번호를 입력받습니다</p>
+              </div>
+              <Switch checked={!!editForm.show_car_number}
+                onCheckedChange={(c) => setEditForm({ ...editForm, show_car_number: c })} />
+            </div>
+
+            <div className="rounded-lg border border-border p-3 space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-foreground">정원 제한</p>
+                  <p className="text-xs text-muted-foreground">정원을 초과하면 대기자로 등록됩니다</p>
+                </div>
+                <Switch checked={!!editForm.capacity_enabled}
+                  onCheckedChange={(c) => setEditForm({ ...editForm, capacity_enabled: c })} />
+              </div>
+              {editForm.capacity_enabled && (
+                <>
+                  <div className="space-y-1.5">
+                    <label className="text-xs text-muted-foreground">정원 수</label>
+                    <Input type="number" min={1} value={editForm.capacity ?? ''}
+                      onChange={(e) => updateEdit('capacity', e.target.value === '' ? null : Number(e.target.value))} />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm text-foreground">대기자 등록 허용</p>
+                    <Switch checked={!!editForm.allow_waitlist}
+                      onCheckedChange={(c) => setEditForm({ ...editForm, allow_waitlist: c })} />
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Poster */}
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-foreground">교육 포스터</label>
+              {editPosterPreview ? (
+                <div className="relative rounded-lg overflow-hidden border border-border">
+                  <img src={editPosterPreview} alt="포스터 미리보기" className="w-full max-h-48 object-contain bg-secondary/30" />
+                  <button type="button" onClick={handleRemoveEditPoster}
+                    className="absolute top-2 right-2 w-7 h-7 rounded-full bg-background/80 backdrop-blur flex items-center justify-center hover:bg-background">
+                    <X className="w-4 h-4 text-foreground" />
+                  </button>
+                </div>
+              ) : !removePosterFlag && training?.poster_url ? (
+                <div className="relative rounded-lg overflow-hidden border border-border">
+                  <img src={training.poster_url} alt="현재 포스터" className="w-full max-h-48 object-contain bg-secondary/30" />
+                  <button type="button" onClick={handleRemoveEditPoster}
+                    className="absolute top-2 right-2 w-7 h-7 rounded-full bg-background/80 backdrop-blur flex items-center justify-center hover:bg-background">
+                    <X className="w-4 h-4 text-foreground" />
+                  </button>
+                </div>
+              ) : (
+                <button type="button" onClick={() => editFileInputRef.current?.click()}
+                  className="w-full h-28 border-2 border-dashed border-border rounded-lg flex flex-col items-center justify-center gap-1.5 text-muted-foreground hover:border-primary/50 hover:text-primary transition-colors">
+                  <ImagePlus className="w-6 h-6" />
+                  <span className="text-xs">클릭하여 포스터 이미지 선택</span>
+                </button>
+              )}
+              <input ref={editFileInputRef} type="file" accept="image/*" className="hidden" onChange={handleEditPosterSelect} />
+            </div>
+
+            <Button type="submit" className="w-full h-11 font-semibold" disabled={saving}>
+              {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : '저장'}
             </Button>
-          </AlertDialogTrigger>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>교육을 삭제하시겠습니까?</AlertDialogTitle>
-              <AlertDialogDescription>이 작업은 되돌릴 수 없습니다. 모든 신청자 정보도 함께 삭제됩니다.</AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>취소</AlertDialogCancel>
-              <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground">삭제</AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-      </div>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

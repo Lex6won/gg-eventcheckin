@@ -44,6 +44,41 @@ interface ExportOptions {
   showCarNumber?: boolean;
 }
 
+export interface TraineeRow {
+  id: string;
+  org_type: string | null;
+  organization: string;
+  department: string | null;
+  position: string | null;
+  name: string;
+  car_number: string | null;
+  signature_url: string;
+  status: string;
+  registered_at: string;
+  confirmed_at: string | null;
+}
+
+export interface TrainingExportData {
+  title: string;
+  event_date: string;
+  start_time: string;
+  end_time: string;
+  location: string;
+  organizer: string;
+  instructor?: string | null;
+}
+
+const STATUS_LABEL: Record<string, string> = {
+  confirmed: '확정',
+  waitlisted: '대기',
+  cancelled: '취소',
+};
+
+const formatRegisteredAt = (t: TraineeRow) => {
+  const d = t.confirmed_at || t.registered_at;
+  return d ? new Date(d).toLocaleString('ko-KR', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '-';
+};
+
 const formatTime = (t: string) => t?.slice(0, 5) || '';
 const formatCheckedIn = (d: string | null) =>
   d ? new Date(d).toLocaleString('ko-KR', { hour: '2-digit', minute: '2-digit' }) : '-';
@@ -410,4 +445,206 @@ export async function exportAllAttendeesToPDF(attendees: AllAttendeeRow[]) {
 
   const today = new Date().toISOString().slice(0, 10);
   doc.save(`참석자현황_${today}.pdf`);
+}
+
+// ─── Excel Export (Trainees) ───────────────────────────────────
+
+export async function exportTraineesToExcel(training: TrainingExportData, trainees: TraineeRow[], opts: ExportOptions = {}) {
+  const showCar = opts.showCarNumber ?? false;
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet('교육신청자명단');
+
+  const sigColWidth = 30;
+  const baseCols = [
+    { width: 6 }, { width: 8 }, { width: 10 }, { width: 20 }, { width: 16 },
+    { width: 12 }, { width: 14 },
+  ];
+  const colWidths = showCar
+    ? [...baseCols, { width: 12 }, { width: sigColWidth }, { width: 16 }]
+    : [...baseCols, { width: sigColWidth }, { width: 16 }];
+  ws.columns = colWidths;
+  const totalCols = colWidths.length;
+  const lastColLetter = String.fromCharCode(64 + totalCols);
+
+  const headerFill: ExcelJS.Fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE5E7EB' } };
+  const headerFont: Partial<ExcelJS.Font> = { bold: true, color: { argb: 'FF1F2937' }, size: 10 };
+  const borderThin: Partial<ExcelJS.Borders> = {
+    top: { style: 'thin' }, bottom: { style: 'thin' },
+    left: { style: 'thin' }, right: { style: 'thin' },
+  };
+
+  ws.mergeCells(`A1:${lastColLetter}1`);
+  const titleCell = ws.getCell('A1');
+  titleCell.value = '교육 신청자 명단';
+  titleCell.font = { bold: true, size: 18 };
+  titleCell.alignment = { horizontal: 'center', vertical: 'middle' };
+  ws.getRow(1).height = 36;
+
+  const infoRows: [string, string][] = [
+    ['교육명', training.title],
+    ['일  시', `${training.event_date}  ${formatTime(training.start_time)} ~ ${formatTime(training.end_time)}`],
+    ['장  소', training.location],
+    ['주관부서', training.organizer + (training.instructor ? `  ·  강사: ${training.instructor}` : '')],
+  ];
+  infoRows.forEach((r, i) => {
+    const row = ws.getRow(i + 2);
+    row.getCell(1).value = r[0];
+    row.getCell(1).font = { bold: true, size: 10 };
+    ws.mergeCells(i + 2, 2, i + 2, totalCols);
+    row.getCell(2).value = r[1];
+    row.getCell(2).font = { size: 10 };
+  });
+
+  const headers = showCar
+    ? ['번호', '상태', '구분', '기관명', '부서', '직급', '성명', '차량번호', '서명', '등록시각']
+    : ['번호', '상태', '구분', '기관명', '부서', '직급', '성명', '서명', '등록시각'];
+  const headerRow = ws.getRow(7);
+  headers.forEach((h, i) => {
+    const cell = headerRow.getCell(i + 1);
+    cell.value = h;
+    cell.fill = headerFill;
+    cell.font = headerFont;
+    cell.alignment = { horizontal: 'center', vertical: 'middle' };
+    cell.border = borderThin;
+  });
+  headerRow.height = 24;
+
+  const sigColIndex = showCar ? 8 : 7;
+
+  for (let idx = 0; idx < trainees.length; idx++) {
+    const t = trainees[idx];
+    const rowNum = idx + 8;
+    const row = ws.getRow(rowNum);
+    const rowHeight = 55;
+    row.height = rowHeight;
+
+    const vals = showCar
+      ? [idx + 1, STATUS_LABEL[t.status] || t.status, t.org_type || '-', t.organization, t.department || '-', t.position || '-', t.name, t.car_number || '-', '', formatRegisteredAt(t)]
+      : [idx + 1, STATUS_LABEL[t.status] || t.status, t.org_type || '-', t.organization, t.department || '-', t.position || '-', t.name, '', formatRegisteredAt(t)];
+    vals.forEach((v, ci) => {
+      const cell = row.getCell(ci + 1);
+      cell.value = v;
+      cell.alignment = { horizontal: 'center', vertical: 'middle' };
+      cell.border = borderThin;
+      cell.font = { size: 10 };
+    });
+
+    if (t.signature_url) {
+      try {
+        const isDataUrl = t.signature_url.startsWith('data:');
+        let buf: ArrayBuffer | null = null;
+        if (isDataUrl) {
+          const base64 = t.signature_url.split(',')[1];
+          const binaryStr = atob(base64);
+          const bytes = new Uint8Array(binaryStr.length);
+          for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
+          buf = bytes.buffer;
+        } else {
+          buf = await fetchImageAsBuffer(t.signature_url);
+        }
+        if (buf) {
+          const imgId = wb.addImage({ buffer: buf, extension: 'png' });
+          const imgWidthPx = (sigColWidth - 2) * 7.5;
+          const imgHeightPx = (rowHeight - 6) * 1.33;
+          ws.addImage(imgId, {
+            tl: { col: sigColIndex + 0.05, row: rowNum - 0.93 } as any,
+            ext: { width: imgWidthPx, height: imgHeightPx },
+          });
+        }
+      } catch { /* skip */ }
+    }
+  }
+
+  const buffer = await wb.xlsx.writeBuffer();
+  const fileName = `교육신청자명단_${training.title}_${training.event_date}.xlsx`;
+  saveAs(new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), fileName);
+}
+
+// ─── PDF Export (Trainees) ─────────────────────────────────────
+
+export async function exportTraineesToPDF(training: TrainingExportData, trainees: TraineeRow[], opts: ExportOptions = {}) {
+  const showCar = opts.showCarNumber ?? false;
+  const fontBuffer = await loadNotoSansKR();
+  const fontBase64 = btoa(
+    new Uint8Array(fontBuffer).reduce((s, b) => s + String.fromCharCode(b), '')
+  );
+
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+  doc.addFileToVFS('NotoSansKR-Regular.ttf', fontBase64);
+  doc.addFont('NotoSansKR-Regular.ttf', 'NotoSansKR', 'normal');
+  doc.setFont('NotoSansKR');
+
+  const sigImages: (string | null)[] = await Promise.all(
+    trainees.map((t) => (t.signature_url ? fetchImageAsBase64(t.signature_url) : Promise.resolve(null)))
+  );
+
+  const pageWidth = doc.internal.pageSize.getWidth();
+
+  const drawHeader = () => {
+    doc.setFontSize(20);
+    doc.text('교육 신청자 명단', pageWidth / 2, 20, { align: 'center' });
+    doc.setFontSize(10);
+    const info = [
+      `교육명: ${training.title}`,
+      `일  시: ${training.event_date}  ${formatTime(training.start_time)} ~ ${formatTime(training.end_time)}`,
+      `장  소: ${training.location}`,
+      `주관부서: ${training.organizer}${training.instructor ? `  ·  강사: ${training.instructor}` : ''}`,
+    ];
+    info.forEach((line, i) => { doc.text(line, 20, 30 + i * 6); });
+  };
+
+  drawHeader();
+
+  const sigColIdx = showCar ? 8 : 7;
+
+  const bodyData = trainees.map((t, i) => showCar
+    ? [String(i + 1), STATUS_LABEL[t.status] || t.status, t.org_type || '-', t.organization, t.department || '-', t.position || '-', t.name, t.car_number || '-', '', formatRegisteredAt(t)]
+    : [String(i + 1), STATUS_LABEL[t.status] || t.status, t.org_type || '-', t.organization, t.department || '-', t.position || '-', t.name, '', formatRegisteredAt(t)]
+  );
+
+  const pdfHeaders = showCar
+    ? [['번호', '상태', '구분', '기관명', '부서', '직급', '성명', '차량번호', '서명', '등록시각']]
+    : [['번호', '상태', '구분', '기관명', '부서', '직급', '성명', '서명', '등록시각']];
+
+  const pdfColStyles = showCar
+    ? { 0: { cellWidth: 10 }, 1: { cellWidth: 14 }, 2: { cellWidth: 14 }, 3: { cellWidth: 28 }, 4: { cellWidth: 26 }, 5: { cellWidth: 16 }, 6: { cellWidth: 20 }, 7: { cellWidth: 22 }, 8: { cellWidth: 36 }, 9: { cellWidth: 24 } }
+    : { 0: { cellWidth: 10 }, 1: { cellWidth: 14 }, 2: { cellWidth: 16 }, 3: { cellWidth: 34 }, 4: { cellWidth: 30 }, 5: { cellWidth: 18 }, 6: { cellWidth: 22 }, 7: { cellWidth: 40 }, 8: { cellWidth: 26 } };
+
+  autoTable(doc, {
+    startY: 56,
+    head: pdfHeaders,
+    body: bodyData,
+    styles: { font: 'NotoSansKR', fontSize: 9, cellPadding: 3, valign: 'middle', halign: 'center', minCellHeight: 14 },
+    headStyles: { fillColor: [229, 231, 235], textColor: [31, 41, 55], fontStyle: 'normal', minCellHeight: 10 },
+    columnStyles: pdfColStyles as any,
+    didDrawCell: (data) => {
+      if (data.section === 'body' && data.column.index === sigColIdx) {
+        const sig = sigImages[data.row.index];
+        if (sig) {
+          try {
+            const imgW = data.cell.width - 4;
+            const imgH = data.cell.height - 3;
+            doc.addImage(sig, 'PNG', data.cell.x + 2, data.cell.y + 1.5, imgW, imgH);
+          } catch { /* skip */ }
+        }
+      }
+    },
+    didDrawPage: (data) => {
+      if (data.pageNumber > 1) { doc.setFont('NotoSansKR'); drawHeader(); }
+    },
+    margin: { top: 56, bottom: 20 },
+  });
+
+  const totalPages = doc.getNumberOfPages();
+  for (let i = 1; i <= totalPages; i++) {
+    doc.setPage(i);
+    doc.setFontSize(8);
+    doc.setFont('NotoSansKR');
+    doc.setFillColor(255, 255, 255);
+    doc.rect(0, doc.internal.pageSize.getHeight() - 15, pageWidth, 15, 'F');
+    doc.text(`${i} / ${totalPages}`, pageWidth / 2, doc.internal.pageSize.getHeight() - 10, { align: 'center' });
+  }
+
+  const fileName = `교육신청자명단_${training.title}_${training.event_date}.pdf`;
+  doc.save(fileName);
 }
