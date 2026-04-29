@@ -44,8 +44,10 @@ const RegisterPage = () => {
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [expired, setExpired] = useState(false);
+  const [preRegClosed, setPreRegClosed] = useState(false);
+  const [inProgress, setInProgress] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [success, setSuccess] = useState<null | { status: string; position?: number }>(null);
+  const [success, setSuccess] = useState<null | { status: string; position?: number; lookup_code?: string }>(null);
   const [duplicate, setDuplicate] = useState(false);
   const [closed, setClosed] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -64,6 +66,14 @@ const RegisterPage = () => {
 
   const fetchAll = useCallback(async () => {
     if (!code) { setNotFound(true); setLoading(false); return; }
+    // 공개 상태 게이트 (시간 기반)
+    const { data: phaseData } = await supabase.rpc('get_event_public_status', { p_code: code });
+    const phase = (phaseData as any)?.phase as string | undefined;
+    if (phase === 'not_found') { setNotFound(true); setLoading(false); return; }
+    if (phase === 'closed') { setExpired(true); /* fall through to load data for title */ }
+    else if (phase === 'in_progress') setInProgress(true);
+    else if (phase === 'pre_reg_closed') setPreRegClosed(true);
+
     // try training first, then event
     const { data: t } = await supabase.from('trainings').select('*').eq('access_code', code).maybeSingle();
     if (t) {
@@ -71,7 +81,7 @@ const RegisterPage = () => {
       setData(t as CommonData);
       if (t.status === '완료') { setExpired(true); setLoading(false); return; }
       const { count } = await supabase.from('trainees').select('*', { count: 'exact', head: true })
-        .eq('training_id', t.id).in('status', ['confirmed','registered','walk_in']);
+        .eq('training_id', t.id).in('status', ['confirmed','registered']);
       setRegisteredCount(count ?? 0);
       if (t.capacity_enabled && t.capacity != null && (count ?? 0) >= t.capacity && !t.allow_waitlist) setClosed(true);
       setLoading(false);
@@ -132,9 +142,9 @@ const RegisterPage = () => {
           p_privacy_agreed: form.privacy_agreed,
         });
         if (error) throw error;
-        const r = res as { status: string };
+        const r = res as { status: string; lookup_code?: string };
         if (r.status === 'duplicate') { setDuplicate(true); return; }
-        setSuccess({ status: r.status });
+        setSuccess({ status: r.status, lookup_code: r.lookup_code });
       } else {
         const { data: res, error } = await supabase.rpc('register_trainee', {
           p_training_id: data.id,
@@ -150,14 +160,17 @@ const RegisterPage = () => {
           p_email: form.email.trim(),
         });
         if (error) throw error;
-        const r = res as { status: string; position?: number };
+        const r = res as { status: string; position?: number; lookup_code?: string };
         if (r.status === 'duplicate') { setDuplicate(true); return; }
         if (r.status === 'full') { setClosed(true); return; }
-        setSuccess({ status: r.status, position: r.position });
+        setSuccess({ status: r.status, position: r.position, lookup_code: r.lookup_code });
       }
     } catch (err) {
       console.error(err);
-      toast.error('사전 신청 중 오류가 발생했습니다. 다시 시도해주세요.');
+      const msg = (err as any)?.message || '';
+      if (msg.includes('Pre-registration closed')) { setPreRegClosed(true); }
+      else if (msg.includes('Event closed') || msg.includes('Training closed')) { setExpired(true); }
+      else toast.error('사전 신청 중 오류가 발생했습니다. 다시 시도해주세요.');
     } finally {
       setSubmitting(false);
     }
@@ -181,6 +194,32 @@ const RegisterPage = () => {
         <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-warning/10"><AlertCircle className="w-10 h-10 text-warning" /></div>
         <h2 className="text-xl font-bold text-foreground">신청이 마감되었습니다</h2>
         <p className="text-muted-foreground text-sm">{data?.title}은(는) 종료되었습니다.</p>
+      </div>
+    </div>
+  );
+
+  if (preRegClosed && !success) return (
+    <div className="min-h-svh bg-background flex items-center justify-center p-4">
+      <div className="text-center space-y-4 animate-fade-in max-w-md">
+        <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-warning/10"><AlertCircle className="w-10 h-10 text-warning" /></div>
+        <h2 className="text-xl font-bold text-foreground">사전 신청이 마감되었습니다</h2>
+        <p className="text-muted-foreground text-sm">사전 신청 기간이 종료되었습니다.<br />당일 현장 등록은 가능합니다.</p>
+        <Link to={kind === 'training' ? `/training/${code}` : `/attend/${code}`}>
+          <Button className="px-8 h-12 text-base rounded-xl">현장 등록 페이지로 이동</Button>
+        </Link>
+      </div>
+    </div>
+  );
+
+  if (inProgress && !success) return (
+    <div className="min-h-svh bg-background flex items-center justify-center p-4">
+      <div className="text-center space-y-4 animate-fade-in max-w-md">
+        <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-primary/10"><ScanLine className="w-10 h-10 text-primary" /></div>
+        <h2 className="text-xl font-bold text-foreground">행사가 진행 중입니다</h2>
+        <p className="text-muted-foreground text-sm">현재 진행 중인 행사입니다.<br />현장 체크인 페이지를 이용해주세요.</p>
+        <Link to={kind === 'training' ? `/training/${code}` : `/attend/${code}`}>
+          <Button className="px-8 h-12 text-base rounded-xl">현장 체크인하러 가기</Button>
+        </Link>
       </div>
     </div>
   );
@@ -221,6 +260,13 @@ const RegisterPage = () => {
               ? <>현재 정원이 마감되어 대기자로 등록되었습니다.<br />자리가 나면 담당자가 안내드립니다.</>
               : <>당일 현장에서 <span className="font-semibold text-foreground">{form.email}</span>로<br />체크인하시면 됩니다.</>}
           </p>
+          {success.lookup_code && !isWait && (
+            <div className="bg-primary/5 border border-primary/30 rounded-xl p-4 space-y-1">
+              <p className="text-xs text-muted-foreground">현장 체크인 보조 코드</p>
+              <p className="text-3xl font-bold text-primary tracking-[0.4em] tabular-nums">{success.lookup_code}</p>
+              <p className="text-xs text-muted-foreground">이메일이 기억나지 않을 때 이 6자리 숫자로도 체크인 가능합니다.</p>
+            </div>
+          )}
           <div className="bg-secondary/40 rounded-xl p-4 text-sm text-left space-y-1.5">
             <p className="font-semibold text-foreground">{data?.title}</p>
             <p className="text-muted-foreground"><Calendar className="inline w-3.5 h-3.5 mr-1" />{data?.event_date} {data?.start_time?.slice(0,5)} ~ {data?.end_time?.slice(0,5)}</p>
