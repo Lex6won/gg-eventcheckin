@@ -154,6 +154,134 @@ export type Database = {
         }
         Relationships: []
       }
+      trainees: {
+        Row: {
+          car_number: string | null
+          confirmed_at: string | null
+          created_at: string | null
+          department: string | null
+          id: string
+          inquiry: string | null
+          name: string
+          org_type: string | null
+          organization: string
+          position: string | null
+          privacy_agreed: boolean
+          registered_at: string
+          signature_url: string
+          status: string
+          training_id: string
+        }
+        Insert: {
+          car_number?: string | null
+          confirmed_at?: string | null
+          created_at?: string | null
+          department?: string | null
+          id?: string
+          inquiry?: string | null
+          name: string
+          org_type?: string | null
+          organization: string
+          position?: string | null
+          privacy_agreed?: boolean
+          registered_at?: string
+          signature_url: string
+          status?: string
+          training_id: string
+        }
+        Update: {
+          car_number?: string | null
+          confirmed_at?: string | null
+          created_at?: string | null
+          department?: string | null
+          id?: string
+          inquiry?: string | null
+          name?: string
+          org_type?: string | null
+          organization?: string
+          position?: string | null
+          privacy_agreed?: boolean
+          registered_at?: string
+          signature_url?: string
+          status?: string
+          training_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trainees_training_id_fkey"
+            columns: ["training_id"]
+            isOneToOne: false
+            referencedRelation: "trainings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      trainings: {
+        Row: {
+          access_code: string
+          allow_waitlist: boolean
+          capacity: number | null
+          capacity_enabled: boolean
+          created_at: string | null
+          created_by: string | null
+          description: string | null
+          end_time: string
+          event_date: string
+          id: string
+          instructor: string | null
+          location: string
+          organizer: string
+          poster_url: string | null
+          show_car_number: boolean
+          start_time: string
+          status: string | null
+          title: string
+          updated_at: string | null
+        }
+        Insert: {
+          access_code: string
+          allow_waitlist?: boolean
+          capacity?: number | null
+          capacity_enabled?: boolean
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
+          end_time: string
+          event_date: string
+          id?: string
+          instructor?: string | null
+          location: string
+          organizer: string
+          poster_url?: string | null
+          show_car_number?: boolean
+          start_time: string
+          status?: string | null
+          title: string
+          updated_at?: string | null
+        }
+        Update: {
+          access_code?: string
+          allow_waitlist?: boolean
+          capacity?: number | null
+          capacity_enabled?: boolean
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
+          end_time?: string
+          event_date?: string
+          id?: string
+          instructor?: string | null
+          location?: string
+          organizer?: string
+          poster_url?: string | null
+          show_car_number?: boolean
+          start_time?: string
+          status?: string | null
+          title?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           id: string
@@ -183,6 +311,25 @@ export type Database = {
           _user_id: string
         }
         Returns: boolean
+      }
+      promote_trainee_from_waitlist: {
+        Args: { p_trainee_id: string }
+        Returns: Json
+      }
+      register_trainee: {
+        Args: {
+          p_car_number: string
+          p_department: string
+          p_inquiry: string
+          p_name: string
+          p_org_type: string
+          p_organization: string
+          p_position: string
+          p_privacy_agreed: boolean
+          p_signature_url: string
+          p_training_id: string
+        }
+        Returns: Json
       }
     }
     Enums: {
