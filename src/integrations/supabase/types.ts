@@ -24,6 +24,7 @@ export type Database = {
           event_id: string
           id: string
           inquiry: string | null
+          lookup_code: string | null
           name: string
           org_type: string | null
           organization: string
@@ -43,6 +44,7 @@ export type Database = {
           event_id: string
           id?: string
           inquiry?: string | null
+          lookup_code?: string | null
           name: string
           org_type?: string | null
           organization: string
@@ -62,6 +64,7 @@ export type Database = {
           event_id?: string
           id?: string
           inquiry?: string | null
+          lookup_code?: string | null
           name?: string
           org_type?: string | null
           organization?: string
@@ -94,6 +97,7 @@ export type Database = {
           location: string
           organizer: string
           poster_url: string | null
+          pre_registration_close_at: string | null
           qr_code_url: string | null
           show_car_number: boolean
           start_time: string
@@ -112,6 +116,7 @@ export type Database = {
           location: string
           organizer: string
           poster_url?: string | null
+          pre_registration_close_at?: string | null
           qr_code_url?: string | null
           show_car_number?: boolean
           start_time: string
@@ -130,12 +135,46 @@ export type Database = {
           location?: string
           organizer?: string
           poster_url?: string | null
+          pre_registration_close_at?: string | null
           qr_code_url?: string | null
           show_car_number?: boolean
           start_time?: string
           status?: string | null
           title?: string
           updated_at?: string | null
+        }
+        Relationships: []
+      }
+      export_audit_logs: {
+        Row: {
+          created_at: string
+          file_type: string
+          id: string
+          includes_signature: boolean
+          row_count: number
+          target_id: string
+          target_type: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          file_type: string
+          id?: string
+          includes_signature?: boolean
+          row_count?: number
+          target_id: string
+          target_type: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          file_type?: string
+          id?: string
+          includes_signature?: boolean
+          row_count?: number
+          target_id?: string
+          target_type?: string
+          user_id?: string
         }
         Relationships: []
       }
@@ -169,6 +208,7 @@ export type Database = {
           email: string | null
           id: string
           inquiry: string | null
+          lookup_code: string | null
           name: string
           org_type: string | null
           organization: string
@@ -187,6 +227,7 @@ export type Database = {
           email?: string | null
           id?: string
           inquiry?: string | null
+          lookup_code?: string | null
           name: string
           org_type?: string | null
           organization: string
@@ -205,6 +246,7 @@ export type Database = {
           email?: string | null
           id?: string
           inquiry?: string | null
+          lookup_code?: string | null
           name?: string
           org_type?: string | null
           organization?: string
@@ -241,6 +283,7 @@ export type Database = {
           location: string
           organizer: string
           poster_url: string | null
+          pre_registration_close_at: string | null
           show_car_number: boolean
           start_time: string
           status: string | null
@@ -262,6 +305,7 @@ export type Database = {
           location: string
           organizer: string
           poster_url?: string | null
+          pre_registration_close_at?: string | null
           show_car_number?: boolean
           start_time: string
           status?: string | null
@@ -283,6 +327,7 @@ export type Database = {
           location?: string
           organizer?: string
           poster_url?: string | null
+          pre_registration_close_at?: string | null
           show_car_number?: boolean
           start_time?: string
           status?: string | null
@@ -314,6 +359,23 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      _assert_event_open_for_onsite: {
+        Args: { p_event_id: string }
+        Returns: undefined
+      }
+      _assert_event_open_for_pre_reg: {
+        Args: { p_event_id: string }
+        Returns: undefined
+      }
+      _assert_training_open_for_onsite: {
+        Args: { p_training_id: string }
+        Returns: undefined
+      }
+      _assert_training_open_for_pre_reg: {
+        Args: { p_training_id: string }
+        Returns: undefined
+      }
+      auto_transition_event_statuses: { Args: never; Returns: undefined }
       checkin_attendee: {
         Args: { p_email: string; p_event_id: string; p_signature_url: string }
         Returns: Json
@@ -326,6 +388,15 @@ export type Database = {
         }
         Returns: Json
       }
+      gen_lookup_code_for_event: {
+        Args: { p_event_id: string }
+        Returns: string
+      }
+      gen_lookup_code_for_training: {
+        Args: { p_training_id: string }
+        Returns: string
+      }
+      get_event_public_status: { Args: { p_code: string }; Returns: Json }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -333,10 +404,20 @@ export type Database = {
         }
         Returns: boolean
       }
+      lookup_attendee: {
+        Args: { p_event_id: string; p_query: string }
+        Returns: Json
+      }
+      lookup_trainee: {
+        Args: { p_query: string; p_training_id: string }
+        Returns: Json
+      }
+      normalize_email: { Args: { p: string }; Returns: string }
       promote_trainee_from_waitlist: {
         Args: { p_trainee_id: string }
         Returns: Json
       }
+      purge_expired_signatures: { Args: never; Returns: number }
       register_attendee_pre: {
         Args: {
           p_car_number: string
@@ -352,38 +433,22 @@ export type Database = {
         }
         Returns: Json
       }
-      register_trainee:
-        | {
-            Args: {
-              p_car_number: string
-              p_department: string
-              p_inquiry: string
-              p_name: string
-              p_org_type: string
-              p_organization: string
-              p_position: string
-              p_privacy_agreed: boolean
-              p_signature_url: string
-              p_training_id: string
-            }
-            Returns: Json
-          }
-        | {
-            Args: {
-              p_car_number: string
-              p_department: string
-              p_email?: string
-              p_inquiry: string
-              p_name: string
-              p_org_type: string
-              p_organization: string
-              p_position: string
-              p_privacy_agreed: boolean
-              p_signature_url: string
-              p_training_id: string
-            }
-            Returns: Json
-          }
+      register_trainee: {
+        Args: {
+          p_car_number: string
+          p_department: string
+          p_email?: string
+          p_inquiry: string
+          p_name: string
+          p_org_type: string
+          p_organization: string
+          p_position: string
+          p_privacy_agreed: boolean
+          p_signature_url: string
+          p_training_id: string
+        }
+        Returns: Json
+      }
       walk_in_attendee: {
         Args: {
           p_car_number: string
