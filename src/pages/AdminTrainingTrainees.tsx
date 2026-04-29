@@ -4,8 +4,19 @@ import { useAuth } from '@/lib/auth';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { ArrowLeft, Loader2, Download, Search, CheckCircle2, XCircle, Clock } from 'lucide-react';
+import {
+  ArrowLeft, Loader2, Download, Search, CheckCircle2, XCircle, Clock,
+  FileSpreadsheet, FileText, Trash2,
+} from 'lucide-react';
 import { toast } from 'sonner';
+import {
+  exportTraineesToExcel, exportTraineesToPDF, type TraineeRow,
+} from '@/lib/exportAttendees';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 
 interface Trainee {
   id: string;
@@ -16,6 +27,7 @@ interface Trainee {
   name: string;
   car_number: string | null;
   inquiry: string | null;
+  signature_url: string;
   status: string;
   registered_at: string;
   confirmed_at: string | null;
@@ -24,6 +36,12 @@ interface Trainee {
 interface Training {
   id: string;
   title: string;
+  event_date: string;
+  start_time: string;
+  end_time: string;
+  location: string;
+  organizer: string;
+  instructor: string | null;
   capacity_enabled: boolean;
   capacity: number | null;
   show_car_number: boolean;
@@ -48,7 +66,7 @@ const AdminTrainingTrainees = () => {
   const fetchAll = useCallback(async () => {
     if (!trainingId) return;
     const { data: t } = await supabase.from('trainings')
-      .select('id, title, capacity_enabled, capacity, show_car_number')
+      .select('id, title, event_date, start_time, end_time, location, organizer, instructor, capacity_enabled, capacity, show_car_number')
       .eq('id', trainingId).single();
     setTraining(t as Training);
     const { data, error } = await supabase.from('trainees')
@@ -90,6 +108,28 @@ const AdminTrainingTrainees = () => {
     const { error } = await supabase.from('trainees').update({ status: 'confirmed', confirmed_at: new Date().toISOString() }).eq('id', id);
     if (error) toast.error('복구 실패');
     else { toast.success('확정으로 복구되었습니다.'); fetchAll(); }
+  };
+
+  const hardDelete = async (id: string) => {
+    const { error } = await supabase.from('trainees').delete().eq('id', id);
+    if (error) toast.error('삭제 실패');
+    else { toast.success('영구 삭제되었습니다.'); fetchAll(); }
+  };
+
+  const exportExcel = async () => {
+    if (!training) return;
+    try {
+      await exportTraineesToExcel(training, filtered as TraineeRow[], { showCarNumber: training.show_car_number });
+      toast.success('엑셀 파일이 다운로드되었습니다.');
+    } catch { toast.error('엑셀 다운로드에 실패했습니다.'); }
+  };
+
+  const exportPDF = async () => {
+    if (!training) return;
+    try {
+      await exportTraineesToPDF(training, filtered as TraineeRow[], { showCarNumber: training.show_car_number });
+      toast.success('PDF 파일이 다운로드되었습니다.');
+    } catch { toast.error('PDF 다운로드에 실패했습니다.'); }
   };
 
   const exportCsv = () => {
@@ -134,7 +174,17 @@ const AdminTrainingTrainees = () => {
 
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <h1 className="text-xl font-bold text-foreground">{training?.title} — 신청자</h1>
-        <Button size="sm" variant="outline" onClick={exportCsv}><Download className="w-4 h-4 mr-1" />CSV 내보내기</Button>
+        <div className="flex flex-wrap gap-2">
+          <Button size="sm" variant="outline" disabled={filtered.length === 0} onClick={exportExcel}>
+            <FileSpreadsheet className="w-4 h-4 mr-1" />엑셀
+          </Button>
+          <Button size="sm" variant="outline" disabled={filtered.length === 0} onClick={exportPDF}>
+            <FileText className="w-4 h-4 mr-1" />PDF
+          </Button>
+          <Button size="sm" variant="outline" disabled={filtered.length === 0} onClick={exportCsv}>
+            <Download className="w-4 h-4 mr-1" />CSV
+          </Button>
+        </div>
       </div>
 
       <div className="flex gap-2" role="tablist">
@@ -191,6 +241,25 @@ const AdminTrainingTrainees = () => {
                       ) : (
                         <Button size="sm" variant="ghost" className="h-7" onClick={() => restore(t.id)}>복구</Button>
                       )}
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button size="sm" variant="ghost" className="h-7 text-destructive hover:text-destructive">
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>이 신청자를 영구 삭제할까요?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              {t.name}님의 신청 정보가 완전히 삭제됩니다. 이 작업은 되돌릴 수 없습니다.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>취소</AlertDialogCancel>
+                            <AlertDialogAction onClick={() => hardDelete(t.id)} className="bg-destructive text-destructive-foreground">삭제</AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
                     </td>
                   </tr>
                 ))}
