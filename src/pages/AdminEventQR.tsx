@@ -47,6 +47,7 @@ const AdminEventQR = () => {
   }, [user, fetchEvent]);
 
   const attendUrl = `${getPublicOrigin()}/attend/${event?.access_code}`;
+  const registerUrl = `${getPublicOrigin()}/register/${event?.access_code}`;
 
   if (loading || authLoading) {
     return (
@@ -72,30 +73,33 @@ const AdminEventQR = () => {
         </Button>
       </div>
 
-      {/* Fullscreen QR display */}
-      <div className="flex-1 flex flex-col items-center justify-center p-8 gap-8">
+      <div className="flex-1 flex flex-col items-center justify-center p-6 gap-6">
         <div className="text-center space-y-2">
-          <h1 className="text-3xl md:text-4xl font-bold text-foreground tracking-tight">
+          <h1 className="text-2xl md:text-3xl font-bold text-foreground tracking-tight">
             {event?.title}
           </h1>
-          <p className="text-lg text-muted-foreground">
+          <p className="text-base text-muted-foreground">
             {event?.event_date} &nbsp; {event?.start_time?.slice(0, 5)} ~ {event?.end_time?.slice(0, 5)}
           </p>
-          <p className="text-lg text-muted-foreground">{event?.location}</p>
+          <p className="text-base text-muted-foreground">{event?.location}</p>
         </div>
 
-        <div className="bg-white p-6 rounded-2xl shadow-lg border border-border/30">
-          <QRCodeSVG value={attendUrl} size={320} level="H" includeMargin />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full max-w-3xl">
+          <div className="bg-white p-5 rounded-2xl shadow-lg border border-border/30 flex flex-col items-center gap-3">
+            <span className="text-sm font-semibold bg-primary/10 text-primary px-3 py-1 rounded-full">사전 신청</span>
+            <QRCodeSVG value={registerUrl} size={240} level="H" includeMargin />
+            <p className="text-xs text-muted-foreground text-center break-all">{registerUrl}</p>
+          </div>
+          <div className="bg-white p-5 rounded-2xl shadow-lg border border-border/30 flex flex-col items-center gap-3">
+            <span className="text-sm font-semibold bg-success/10 text-success px-3 py-1 rounded-full">현장 체크인</span>
+            <QRCodeSVG value={attendUrl} size={240} level="H" includeMargin />
+            <p className="text-xs text-muted-foreground text-center break-all">{attendUrl}</p>
+          </div>
         </div>
 
-        <div className="text-center space-y-2">
-          <p className="text-xl md:text-2xl font-semibold text-primary">
-            스마트폰으로 QR코드를 스캔해주세요
-          </p>
-          <p className="text-sm text-muted-foreground">
-            카메라 앱으로 QR코드를 비추면 참석 등록 페이지로 이동합니다
-          </p>
-        </div>
+        <p className="text-sm text-muted-foreground text-center">
+          사전 신청은 행사 전, 현장 체크인은 행사 당일 사용해주세요.
+        </p>
       </div>
     </div>
   );
