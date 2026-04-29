@@ -1,138 +1,75 @@
-## 교육(Training) 등록 및 관리 기능 설계
+## 분석 리포트: 행사 관리 vs 교육 관리 기능 비교
 
-행사(Events)와 분리된 **교육(Trainings)** 도메인을 신설하여, 정원 제한 + 대기자 명단 기능을 포함한 교육 신청·관리 시스템을 구축합니다.
+### 1. 현재 기능 비교표
 
----
+| 기능 | 행사 관리 | 교육 관리 | 격차 |
+|---|---|---|---|
+| 상세 정보 화면 | AdminEventDetail | AdminTrainingDetail | 교육은 액션 버튼이 적음 |
+| 정보 수정 (제목/일시/장소/포스터 등) | 풀 수정 다이얼로그 (`openEdit`) | 상태/정원/차량번호 토글만 가능 | **수정 다이얼로그 없음** |
+| 포스터 업로드/표시/확대 | 지원 (`event-posters` 버킷) | DB 컬럼은 있으나 **UI 미구현** | **포스터 기능 없음** |
+| 참석자/신청자 명부 화면 | AdminEventAttendees + 상세에 테이블 | AdminTrainingTrainees | 교육은 상세에 명부 테이블 없음 |
+| 엑셀 다운로드 (서명 이미지 포함) | `exportToExcel` (참석확인부 양식) | **CSV만 지원** | **엑셀 미지원** |
+| PDF 다운로드 (NotoSansKR + 서명) | `exportToPDF` | **없음** | **PDF 미지원** |
+| 통계 다이얼로그 (Recharts) | 소속별 Bar / 시간대 Bar / Pie | **없음** | **통계 화면 없음** |
+| 링크 복사 / QR 이미지 / QR 포스터 PDF | 3종 모두 지원 | 링크 복사, QR 화면만 | **QR 이미지/포스터 다운로드 없음** |
+| 신청자 개별 수정 | (행사도 미지원) | 없음 | 양쪽 동일 |
+| 신청자 삭제 (영구) | 지원 | **없음** (cancelled 상태만) | **하드 삭제 없음** |
+| 실시간 카운트 카드 | 지원 | 진행률 바만 있음 | 시각적 카운트 카드 없음 |
 
-### 1. 데이터베이스 (신규 테이블)
+### 2. 데이터 모델 차이로 인한 주의점
 
-#### `trainings` 테이블 (교육 정보)
-기존 `events`와 유사하되 교육 전용 필드 추가:
+- `attendees`에는 `checked_in_at`이 시간순 등록 시각, `trainees`에는 `registered_at` + `confirmed_at`이 분리되어 있음 → 내보내기/통계의 "등록시간" 기준은 `confirmed_at ?? registered_at` 사용
+- `trainees`에는 `status` (confirmed/waitlisted/cancelled)가 있어 내보내기 시 **상태 컬럼**과 **상태별 필터링**이 필요
+- 정원 제한 활성화 시 통계에 "확정/대기/취소" 분포와 "정원 대비 충원율"이 의미 있음
 
-| 컬럼 | 타입 | 설명 |
-|---|---|---|
-| id | uuid | PK |
-| title, description | text | 교육명, 설명 |
-| event_date, start_time, end_time | date/time | 일정 |
-| location, organizer | text | 장소, 주관 |
-| instructor | text (nullable) | 강사명 (교육 전용) |
-| access_code | text | 6자리 숫자 접속코드 |
-| status | text | 예정/진행중/완료 |
-| poster_url | text | 포스터 |
-| show_car_number | boolean | 차량번호 수집 여부 |
-| **capacity_enabled** | boolean | 정원 제한 사용 여부 (토글) |
-| **capacity** | integer (nullable) | 정원 수 |
-| **allow_waitlist** | boolean | 대기자 허용 여부 (default true) |
-| created_by, created_at, updated_at | - | 메타 |
+### 3. 구현 계획
 
-#### `trainees` 테이블 (교육 신청자)
-기존 `attendees` 구조 + 대기자 상태 컬럼:
+#### A. 공통 라이브러리 확장 (`src/lib/exportAttendees.ts`)
+- 신규 함수 추가 (기존 함수는 그대로 유지):
+  - `exportTraineesToExcel(training, trainees, opts)` — 행사 양식과 동일한 레이아웃, 헤더 라벨만 "교육명/강사" 등으로 조정, **상태 컬럼 추가**, 서명 이미지 임베드
+  - `exportTraineesToPDF(training, trainees, opts)` — landscape A4, NotoSansKR 동일, 상태 컬럼 포함
+- `Trainee`/`TrainingData` 인터페이스 정의, `showCarNumber`/`statusFilter` 옵션 지원
 
-| 컬럼 | 타입 | 설명 |
-|---|---|---|
-| id | uuid | PK |
-| training_id | uuid | FK → trainings |
-| org_type, organization, department, position, name | text | 신청자 정보 |
-| car_number, inquiry | text (nullable) | 선택 입력 |
-| signature_url | text | 서명 이미지 |
-| privacy_agreed | boolean | 동의 여부 |
-| **status** | text | `confirmed`(확정) / `waitlisted`(대기) / `cancelled`(취소) |
-| **registered_at** | timestamp | 신청 시각 (대기 순번 기준) |
-| **confirmed_at** | timestamp (nullable) | 대기→확정 전환 시점 |
-| created_at | timestamp | - |
+#### B. `AdminTrainingDetail.tsx` 보강
+- **풀 수정 다이얼로그** 추가 (행사와 동일 패턴):
+  - 제목/설명/일시/장소/주관/강사/포스터 업로드·삭제·확대(`event-posters` 버킷 재사용)
+- **액션 버튼 행** 추가: 통계 / 링크 복사(이미 있음) / QR 전체화면(이미 있음) / **QR 이미지** / **QR 포스터 PDF** / 수정 / 삭제
+- **실시간 카운트 카드** 추가 (확정/대기/취소 3개)
+- **신청자 명부 테이블** 인라인 표시 + 엑셀/PDF 다운로드 버튼 (현재 활성 탭에 따라 또는 전체)
+- **통계 다이얼로그** 추가 (Recharts):
+  - 소속별 Bar (상위 8개)
+  - 신청 시간대 Bar (30분 단위, `registered_at` 기준)
+  - 상태 분포 Pie (확정/대기/취소)
+  - 정원 충원율 진행 바 (정원 활성 시)
 
-UNIQUE 인덱스: `(training_id, name, organization)` (취소 제외) — 중복 신청 차단
+#### C. `AdminTrainingTrainees.tsx` 보강
+- 기존 CSV 버튼을 **엑셀 / PDF / CSV** 3개 버튼으로 확장 (`exportTraineesToExcel`/`exportTraineesToPDF` 사용)
+- 행 단위 **영구 삭제** 버튼 추가 (확인 다이얼로그) — 현재는 status='cancelled' 만 가능
+- 검색·필터 후의 결과를 내보내도록 유지
 
-#### RLS 정책 (`events`와 동일 패턴)
-- `trainings`: 모두 SELECT 가능, 생성자/super_admin만 INSERT/UPDATE/DELETE
-- `trainees`: 누구나 INSERT, 교육 생성자/super_admin만 SELECT/UPDATE/DELETE
+#### D. QR 다운로드 재사용
+- 기존 `src/lib/qrExport.ts`의 `downloadQRImage`/`downloadQRPoster`는 `event` 형태(title, event_date, location, access_code)를 받음 → training 객체를 동일 shape로 매핑해 그대로 호출
 
-#### 정원 검증 (서버 측)
-DB 함수 `register_trainee(training_id, ...payload)`를 SECURITY DEFINER로 작성:
-1. 트랜잭션 내에서 해당 교육의 `capacity_enabled`, `capacity`, `allow_waitlist` 조회
-2. `confirmed` 신청자 수를 `count`
-3. 정원 미만이면 `status='confirmed'`로 INSERT
-4. 정원 초과 + `allow_waitlist=true`면 `status='waitlisted'`로 INSERT
-5. 정원 초과 + 대기자 비허용이면 에러 반환
-6. 반환값: `{ status: 'confirmed' | 'waitlisted', position?: number }`
+### 4. 기술 세부
 
-→ 동시 요청 경쟁 조건(race condition) 방지를 위해 함수 내에서 `LOCK TABLE` 또는 `SELECT ... FOR UPDATE` 사용.
-
----
-
-### 2. 라우팅 (신규)
-
-```text
-/training/:accessCode      → 교육 신청 페이지 (참석자용)
-/admin/trainings           → 교육 목록 관리
-/admin/trainings/:id       → 교육 상세/통계
-/admin/trainings/:id/trainees → 신청자 명단 (확정/대기 분리 표시)
-/admin/trainings/:id/qr    → QR 출력
+**Export 함수 시그니처 (예정)**
+```ts
+exportTraineesToExcel(
+  training: { title; event_date; start_time; end_time; location; organizer; instructor? },
+  trainees: Trainee[],
+  opts?: { showCarNumber?: boolean; includeStatus?: boolean }
+)
 ```
 
----
+**컬럼 (엑셀/PDF)**
+```text
+번호 | 상태 | 구분 | 기관명 | 부서 | 직급 | 성명 | [차량번호] | 서명 | 등록시각
+```
+상태 라벨: 확정/대기/취소 (한글), 등록시각은 `confirmed_at ?? registered_at`.
 
-### 3. 관리자 UI
+**파일 변경 요약**
+- 수정: `src/lib/exportAttendees.ts` (함수 추가)
+- 수정: `src/pages/AdminTrainingDetail.tsx` (수정 다이얼로그, 통계, QR 다운로드, 명부 테이블, 카운트 카드)
+- 수정: `src/pages/AdminTrainingTrainees.tsx` (엑셀/PDF 버튼, 영구 삭제)
 
-#### `AdminLayout` 사이드바에 메뉴 추가
-- 행사 관리 / **교육 관리** / 참석자 현황 / 설정
-
-#### `AdminTrainings.tsx` (교육 목록)
-- `AdminEvents.tsx`와 동일한 구조: 상태 필터, 카드 그리드, 복제, 새 교육
-- 카드에 "신청 12 / 정원 30 (대기 3)" 형식으로 표시
-
-#### `CreateTrainingDialog.tsx`
-- 기존 `CreateEventDialog` 항목 + 다음 필드 추가:
-  - **강사명** (선택)
-  - **정원 제한 토글** (Switch)
-    - ON 시 정원 수 입력 필드 노출 (number, min=1)
-    - **대기자 허용** 체크박스 (default ON)
-  - 토글 OFF면 정원/대기자 필드 비활성화
-
-#### `AdminTrainingDetail.tsx`
-- 기존 통계 + **정원 진행률 바** (확정/정원, 대기자 수)
-- "대기자 → 확정 전환" 버튼 (자리가 났거나 정원 늘렸을 때)
-
-#### `AdminTrainingTrainees.tsx`
-- 탭: 확정 / 대기 / 취소
-- 대기자 행에서 "확정", "취소" 액션
-- 확정자에서 "취소" 액션 → 트리거로 가장 빠른 대기자 자동 승격(옵션) 또는 수동
-- 엑셀/PDF 내보내기 (상태 컬럼 포함)
-
----
-
-### 4. 신청자 UI (`/training/:accessCode`)
-
-`AttendancePage.tsx` 기반으로 `TrainingRegisterPage.tsx` 신설:
-
-- 상단에 **정원 현황 배지**: "정원 30명 중 18명 신청" 또는 "정원 마감 — 대기자 등록 가능"
-- `capacity_enabled=true` AND `confirmed >= capacity`인 경우:
-  - `allow_waitlist=true`: "현재 정원이 마감되어 대기자로 등록됩니다" 안내 후 진행
-  - `allow_waitlist=false`: 폼 숨기고 "신청이 마감되었습니다" 표시
-- 제출 시 `register_trainee` RPC 호출
-- 완료 화면 분기:
-  - `confirmed`: "신청이 완료되었습니다 ✓"
-  - `waitlisted`: "대기자 N번으로 등록되었습니다. 자리가 나면 안내드립니다."
-- 기존 패턴 유지: 추가신청 등록 / 확인(홈) 버튼, 서명, 개인정보 동의
-
----
-
-### 5. 구현 순서
-
-1. **DB 마이그레이션**: `trainings`, `trainees` 테이블 + RLS + `register_trainee` 함수 + 트리거(`updated_at`)
-2. **라우팅 추가**: `App.tsx`에 4개 라우트 등록
-3. **관리자 페이지**: `AdminTrainings`, `CreateTrainingDialog`, `AdminTrainingDetail`, `AdminTrainingTrainees`, `AdminTrainingQR`
-4. **신청 페이지**: `TrainingRegisterPage` (정원/대기 로직 포함)
-5. **사이드바 메뉴**: `AdminLayout`에 "교육 관리" 추가
-6. **공유 유틸 재사용**: `exportAttendees.ts`, `qrExport.ts`, `getPublicUrl.ts` → 교육용으로 일반화 또는 복제
-
----
-
-### 핵심 설계 포인트
-
-- **데이터 분리**: 교육은 별도 테이블 → 향후 강사 평가, 수료증, 차수 관리 등 확장 용이
-- **정원 검증은 서버에서**: 클라이언트만 체크 시 동시 신청으로 정원 초과 가능 → DB 함수로 원자적 처리
-- **대기자 자동 승격은 수동(MVP)**: 자동화하면 알림이 필요해지므로, 우선 관리자가 승격 버튼으로 처리. 추후 알림 기능과 함께 자동화 검토.
-- **UI/UX 일관성**: 행사 관리와 동일한 시각적 패턴 유지 (카드, 필터, 통계, 내보내기)
-
-승인하시면 위 순서대로 구현을 시작하겠습니다.
+기존 행사 기능과 시각·UX를 일치시켜 사용자가 같은 멘탈 모델로 사용할 수 있도록 합니다.
