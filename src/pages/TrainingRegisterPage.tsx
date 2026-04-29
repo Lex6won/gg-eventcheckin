@@ -5,7 +5,6 @@ import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Textarea } from '@/components/ui/textarea';
 import {
   CheckCircle2, Calendar, MapPin, Clock, Loader2, Building2,
   RotateCcw, AlertCircle, XCircle, User, Users,
@@ -381,12 +380,6 @@ const TrainingRegisterPage = () => {
               </div>
             )}
 
-            <div className="space-y-1.5">
-              <label className="text-sm font-semibold text-foreground">문의사항</label>
-              <Textarea value={form.inquiry} onChange={(e) => updateField('inquiry', e.target.value)}
-                placeholder="문의사항이 있으시면 입력해주세요"
-                className="bg-secondary/50 border-border/60 min-h-[80px]" />
-            </div>
           </div>
 
           <div className="bg-card rounded-xl shadow-card p-5 space-y-3 animate-fade-in">
