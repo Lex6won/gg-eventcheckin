@@ -386,8 +386,8 @@ const AdminEventDetail = () => {
           </div>
 
           {/* Action buttons */}
-          <div className="flex flex-wrap gap-2 pt-1 border-t border-border/50 mt-1">
-            <div className="flex flex-wrap gap-2 pt-3">
+          <div className="border-t border-border/50 pt-4">
+            <div className="flex flex-wrap gap-2">
               <Button size="sm" onClick={() => navigate(`/admin/events/${eventId}/attendees`)} aria-label="참석자 목록 보기">
                 <Users className="w-4 h-4 mr-1" /> 참석자 ({attendees.length})
               </Button>
