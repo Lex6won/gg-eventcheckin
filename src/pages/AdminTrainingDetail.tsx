@@ -501,27 +501,97 @@ const AdminTrainingDetail = () => {
         </div>
       )}
 
-      {/* Trainees Table */}
+      {/* Summary cards: 사전 신청 / 참석 완료 / 현장 등록 / 미참석 */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="bg-card rounded-xl shadow-sm border border-border/50 p-4 flex items-center gap-3">
+          <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center"><ClipboardList className="w-5 h-5 text-primary" /></div>
+          <div>
+            <p className="text-2xl font-bold tabular-nums">{applicants.length}</p>
+            <p className="text-[11px] text-muted-foreground">사전 신청</p>
+          </div>
+        </div>
+        <div className="bg-card rounded-xl shadow-sm border border-border/50 p-4 flex items-center gap-3">
+          <div className="w-10 h-10 rounded-lg bg-success/10 flex items-center justify-center"><CheckCircle2 className="w-5 h-5 text-success" /></div>
+          <div>
+            <p className="text-2xl font-bold tabular-nums">{attendedList.length}</p>
+            <p className="text-[11px] text-muted-foreground">참석 완료</p>
+          </div>
+        </div>
+        <div className="bg-card rounded-xl shadow-sm border border-border/50 p-4 flex items-center gap-3">
+          <div className="w-10 h-10 rounded-lg bg-warning/10 flex items-center justify-center"><UserPlus className="w-5 h-5 text-warning" /></div>
+          <div>
+            <p className="text-2xl font-bold tabular-nums">{walkInCount}</p>
+            <p className="text-[11px] text-muted-foreground">현장 등록</p>
+          </div>
+        </div>
+        <div className="bg-card rounded-xl shadow-sm border border-border/50 p-4 flex items-center gap-3">
+          <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center"><X className="w-5 h-5 text-muted-foreground" /></div>
+          <div>
+            <p className="text-2xl font-bold tabular-nums">{noShowCount}</p>
+            <p className="text-[11px] text-muted-foreground">미참석</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Roster preview with tabs */}
       <div className="bg-card rounded-xl shadow-sm border border-border/50 overflow-hidden">
-        <div className="p-5 border-b border-border/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <h2 className="font-bold text-foreground flex items-center gap-2">
-            <Users className="w-5 h-5 text-primary" />신청자 명부
-            <span className="tabular-nums text-sm text-muted-foreground font-medium ml-1">총 {trainees.length}명</span>
-          </h2>
+        <div className="p-4 border-b border-border/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex gap-2" role="tablist">
+            <button
+              role="tab"
+              aria-selected={tab === 'applicants'}
+              onClick={() => setTab('applicants')}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                tab === 'applicants' ? 'bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
+              }`}
+            >
+              <ClipboardList className="w-4 h-4" />신청자 명부 ({applicants.length})
+            </button>
+            <button
+              role="tab"
+              aria-selected={tab === 'attendees'}
+              onClick={() => setTab('attendees')}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                tab === 'attendees' ? 'bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
+              }`}
+            >
+              <CheckCircle2 className="w-4 h-4" />참석자 명부 ({attendedList.length})
+            </button>
+          </div>
           <div className="flex flex-wrap gap-2">
-            <Button size="sm" variant="outline" disabled={trainees.length === 0} onClick={handleExportExcel}>
-              <FileSpreadsheet className="w-4 h-4 mr-1" />엑셀
+            <Button
+              size="sm"
+              onClick={() => handleTabExport('xlsx')}
+              disabled={!!exporting || tabRows.length === 0}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white"
+            >
+              {exporting === 'xlsx' ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <FileSpreadsheet className="w-4 h-4 mr-1" />}
+              엑셀
             </Button>
-            <Button size="sm" variant="outline" disabled={trainees.length === 0} onClick={handleExportPDF}>
-              <FileText className="w-4 h-4 mr-1" />PDF
+            <Button
+              size="sm"
+              onClick={() => handleTabExport('pdf')}
+              disabled={!!exporting || tabRows.length === 0}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              {exporting === 'pdf' ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <FileText className="w-4 h-4 mr-1" />}
+              PDF
             </Button>
           </div>
         </div>
 
-        {trainees.length === 0 ? (
-          <div className="p-12 text-center text-muted-foreground text-sm">아직 신청한 인원이 없습니다.</div>
+        <div className="px-4 pt-3 text-xs text-muted-foreground">
+          {tab === 'applicants'
+            ? '사전 신청한 모든 인원입니다 (서명 미포함).'
+            : '서명 완료한 참석자입니다 (사전신청 + 현장등록).'}
+        </div>
+
+        {tabRows.length === 0 ? (
+          <div className="p-12 text-center text-muted-foreground text-sm">
+            {tab === 'applicants' ? '아직 사전 신청한 인원이 없습니다.' : '아직 참석 확인된 인원이 없습니다.'}
+          </div>
         ) : (
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto mt-2">
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-secondary/50 text-muted-foreground">
@@ -530,31 +600,39 @@ const AdminTrainingDetail = () => {
                   <th className="px-4 py-3 text-left font-medium">소속</th>
                   <th className="px-4 py-3 text-left font-medium">성명</th>
                   <th className="px-4 py-3 text-left font-medium">직급</th>
-                  <th className="px-4 py-3 text-left font-medium">서명</th>
-                  <th className="px-4 py-3 text-left font-medium">등록시간</th>
+                  {tab === 'attendees' && <th className="px-4 py-3 text-left font-medium">서명</th>}
+                  <th className="px-4 py-3 text-left font-medium">{tab === 'applicants' ? '신청시각' : '등록시각'}</th>
                 </tr>
               </thead>
               <tbody>
-                {trainees.map((t, i) => (
+                {tabRows.map((t, i) => (
                   <tr key={t.id} className="border-t border-border/30 hover:bg-secondary/30 transition-colors">
                     <td className="px-4 py-3 tabular-nums text-muted-foreground">{i + 1}</td>
                     <td className="px-4 py-3">
                       <span className={`text-xs px-2 py-0.5 rounded-md ${
                         t.status === 'confirmed' ? 'bg-primary/10 text-primary' :
                         t.status === 'waitlisted' ? 'bg-warning/10 text-warning' :
+                        t.status === 'walk_in' ? 'bg-warning/10 text-warning' :
                         'bg-muted text-muted-foreground'
                       }`}>
-                        {t.status === 'confirmed' ? '확정' : t.status === 'waitlisted' ? '대기' : '취소'}
+                        {t.status === 'confirmed' ? '확정' :
+                          t.status === 'waitlisted' ? '대기' :
+                          t.status === 'walk_in' ? '현장등록' :
+                          t.status === 'cancelled' ? '취소' : t.status}
                       </span>
                     </td>
                     <td className="px-4 py-3 text-foreground">{t.organization}</td>
                     <td className="px-4 py-3 font-medium text-foreground">{t.name}</td>
                     <td className="px-4 py-3 text-muted-foreground">{t.position || '-'}</td>
-                    <td className="px-4 py-3">
-                      {t.signature_url && <img src={t.signature_url} alt={`${t.name} 서명`} className="h-8 w-auto" />}
-                    </td>
+                    {tab === 'attendees' && (
+                      <td className="px-4 py-3">
+                        {t.signature_url ? <img src={t.signature_url} alt={`${t.name} 서명`} className="h-8 w-auto" /> : '-'}
+                      </td>
+                    )}
                     <td className="px-4 py-3 tabular-nums text-muted-foreground text-xs">
-                      {new Date(t.confirmed_at || t.registered_at).toLocaleString('ko-KR', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                      {tab === 'applicants'
+                        ? new Date(t.registered_at).toLocaleString('ko-KR', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+                        : new Date(t.confirmed_at || t.registered_at).toLocaleString('ko-KR', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}
                     </td>
                   </tr>
                 ))}
