@@ -80,7 +80,8 @@ const AdminEventDetail = () => {
   const [removePosterFlag, setRemovePosterFlag] = useState(false);
   const editFileInputRef = useRef<HTMLInputElement>(null);
   const [saving, setSaving] = useState(false);
-  const qrRef = useRef<HTMLDivElement>(null);
+  const qrAttendRef = useRef<HTMLDivElement>(null);
+  const qrRegisterRef = useRef<HTMLDivElement>(null);
 
   const fetchData = useCallback(async () => {
     const [eventRes, attendeesRes] = await Promise.all([
@@ -108,24 +109,47 @@ const AdminEventDetail = () => {
   }, [user, fetchData]);
 
   const attendUrl = `${getPublicOrigin()}/attend/${event?.access_code}`;
+  const registerUrl = `${getPublicOrigin()}/register/${event?.access_code}`;
 
-  const handleCopyLink = () => {
+  const handleCopyAttendLink = () => {
     navigator.clipboard.writeText(attendUrl);
-    toast.success('참석 등록 링크가 복사되었습니다.');
+    toast.success('참석 확인 링크가 복사되었습니다.');
   };
 
-  const handleDownloadQR = () => {
-    const svg = qrRef.current?.querySelector('svg') as SVGSVGElement | null;
+  const handleCopyRegisterLink = () => {
+    navigator.clipboard.writeText(registerUrl);
+    toast.success('사전 신청 링크가 복사되었습니다.');
+  };
+
+  const handleDownloadAttendQR = () => {
+    const svg = qrAttendRef.current?.querySelector('svg') as SVGSVGElement | null;
     if (!svg || !event) return;
-    downloadQRImage(svg, event.access_code);
+    downloadQRImage(svg, event.access_code, 'attend');
   };
 
-  const handleDownloadPoster = async () => {
-    const svg = qrRef.current?.querySelector('svg') as SVGSVGElement | null;
+  const handleDownloadRegisterQR = () => {
+    const svg = qrRegisterRef.current?.querySelector('svg') as SVGSVGElement | null;
+    if (!svg || !event) return;
+    downloadQRImage(svg, event.access_code, 'register');
+  };
+
+  const handleDownloadAttendPoster = async () => {
+    const svg = qrAttendRef.current?.querySelector('svg') as SVGSVGElement | null;
     if (!svg || !event) return;
     try {
-      await downloadQRPoster(event, svg);
-      toast.success('QR 포스터가 다운로드되었습니다.');
+      await downloadQRPoster(event, svg, 'attend');
+      toast.success('참석 확인 QR 포스터가 다운로드되었습니다.');
+    } catch {
+      toast.error('포스터 다운로드에 실패했습니다.');
+    }
+  };
+
+  const handleDownloadRegisterPoster = async () => {
+    const svg = qrRegisterRef.current?.querySelector('svg') as SVGSVGElement | null;
+    if (!svg || !event) return;
+    try {
+      await downloadQRPoster(event, svg, 'register');
+      toast.success('사전 신청 QR 포스터가 다운로드되었습니다.');
     } catch {
       toast.error('포스터 다운로드에 실패했습니다.');
     }
