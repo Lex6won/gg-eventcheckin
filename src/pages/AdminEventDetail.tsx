@@ -441,8 +441,8 @@ const AdminEventDetail = () => {
           {/* Action buttons */}
           <div className="border-t border-border/50 pt-4">
             <div className="flex flex-wrap gap-2">
-              <Button size="sm" onClick={() => navigate(`/admin/events/${eventId}/attendees`)} aria-label="참석자 목록 보기">
-                <Users className="w-4 h-4 mr-1" /> 참석자 ({attendees.length})
+              <Button size="sm" onClick={() => navigate(`/admin/events/${eventId}/attendees`)} aria-label="명부 전체보기">
+                <Users className="w-4 h-4 mr-1" /> 명부 전체보기
               </Button>
               <Button size="sm" variant="outline" onClick={() => setShowStats(true)} aria-label="통계 보기">
                 <BarChart3 className="w-4 h-4 mr-1" /> 통계
