@@ -17,6 +17,23 @@ interface Attendee {
   checked_in_at: string | null;
 }
 
+// Row used for "신청자/참석자" lists (status-aware)
+export interface RosterAttendee {
+  id: string;
+  org_type: string | null;
+  organization: string;
+  department: string | null;
+  position: string | null;
+  name: string;
+  email: string | null;
+  phone: string | null;
+  car_number: string | null;
+  signature_url: string | null;
+  status: string;
+  registered_at: string | null;
+  checked_in_at: string | null;
+}
+
 interface EventData {
   title: string;
   event_date: string;
