@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useCallback } from 'react';
+import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/lib/auth';
 import { supabase } from '@/integrations/supabase/client';
@@ -12,11 +12,16 @@ import {
   ArrowLeft, Users, Calendar, MapPin, Clock, Hash,
   Loader2, Trash2, Copy, Download, Pencil, Maximize2, FileImage,
   BarChart3, ImagePlus, X, FileSpreadsheet, FileText, ScanLine,
+  ClipboardList, CheckCircle2, UserPlus,
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { toast } from 'sonner';
 import { downloadQRPoster, downloadQRImage } from '@/lib/qrExport';
-import { exportToExcel, exportToPDF } from '@/lib/exportAttendees';
+import {
+  exportApplicantsToExcel, exportApplicantsToPDF,
+  exportAttendeesRosterToExcel, exportAttendeesRosterToPDF,
+  type RosterAttendee,
+} from '@/lib/exportAttendees';
 import { getPublicOrigin } from '@/lib/getPublicUrl';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -30,11 +35,14 @@ interface Attendee {
   department: string | null;
   position: string | null;
   name: string;
+  email: string | null;
   phone: string | null;
   car_number: string | null;
   inquiry: string | null;
   
-  signature_url: string;
+  signature_url: string | null;
+  status: string;
+  registered_at: string | null;
   checked_in_at: string | null;
 }
 
