@@ -46,7 +46,13 @@ interface PosterEvent {
   access_code: string;
 }
 
-export async function downloadQRPoster(event: PosterEvent, qrSvg: SVGSVGElement) {
+export type PosterMode = 'register' | 'attend';
+
+export async function downloadQRPoster(
+  event: PosterEvent,
+  qrSvg: SVGSVGElement,
+  mode: PosterMode = 'attend'
+) {
   const fontBuffer = await loadNotoSansKR();
   const fontBase64 = arrayBufferToBase64(fontBuffer);
 
@@ -58,13 +64,29 @@ export async function downloadQRPoster(event: PosterEvent, qrSvg: SVGSVGElement)
   const pw = doc.internal.pageSize.getWidth();  // 210
   const ph = doc.internal.pageSize.getHeight(); // 297
 
+  const isRegister = mode === 'register';
+  const accentColor: [number, number, number] = isRegister ? [37, 99, 235] : [22, 163, 74];
+  const stepLabel = isRegister ? '1단계 · 사전 신청' : '2단계 · 참석 확인';
+  const headlineLine1 = isRegister
+    ? '스마트폰 카메라로 QR코드를 스캔하여'
+    : '스마트폰 카메라로 QR코드를 스캔하여';
+  const headlineLine2 = isRegister ? '사전 신청해주세요' : '참석 확인해주세요';
+  const subInstruction = isRegister
+    ? '카메라 앱으로 위 QR코드를 비추면 사전 신청 페이지로 이동합니다.'
+    : '카메라 앱으로 위 QR코드를 비추면 참석 확인(서명) 페이지로 이동합니다.';
+
   // Background
   doc.setFillColor(255, 255, 255);
   doc.rect(0, 0, pw, ph, 'F');
 
   // Top accent line
-  doc.setFillColor(37, 99, 235);
+  doc.setFillColor(accentColor[0], accentColor[1], accentColor[2]);
   doc.rect(0, 0, pw, 4, 'F');
+
+  // Step badge
+  doc.setFontSize(13);
+  doc.setTextColor(accentColor[0], accentColor[1], accentColor[2]);
+  doc.text(stepLabel, pw / 2, 22, { align: 'center' });
 
   // Title
   doc.setFontSize(28);
@@ -85,14 +107,14 @@ export async function downloadQRPoster(event: PosterEvent, qrSvg: SVGSVGElement)
 
   // Instructions
   doc.setFontSize(18);
-  doc.setTextColor(37, 99, 235);
-  doc.text('스마트폰 카메라로 QR코드를 스캔하여', pw / 2, 205, { align: 'center' });
-  doc.text('참석 등록해주세요', pw / 2, 215, { align: 'center' });
+  doc.setTextColor(accentColor[0], accentColor[1], accentColor[2]);
+  doc.text(headlineLine1, pw / 2, 205, { align: 'center' });
+  doc.text(headlineLine2, pw / 2, 215, { align: 'center' });
 
   // Sub instruction
   doc.setFontSize(11);
   doc.setTextColor(140, 140, 140);
-  doc.text('카메라 앱으로 위 QR코드를 비추면 참석 등록 페이지로 이동합니다.', pw / 2, 230, { align: 'center' });
+  doc.text(subInstruction, pw / 2, 230, { align: 'center' });
 
   // Access code
   doc.setFontSize(12);
@@ -100,16 +122,22 @@ export async function downloadQRPoster(event: PosterEvent, qrSvg: SVGSVGElement)
   doc.text(`접속코드: ${event.access_code}`, pw / 2, 248, { align: 'center' });
 
   // Bottom accent line
-  doc.setFillColor(37, 99, 235);
+  doc.setFillColor(accentColor[0], accentColor[1], accentColor[2]);
   doc.rect(0, ph - 4, pw, 4, 'F');
 
-  doc.save(`QR포스터_${event.title}_${event.event_date}.pdf`);
+  const fileSuffix = isRegister ? '사전신청' : '참석확인';
+  doc.save(`QR포스터_${fileSuffix}_${event.title}_${event.event_date}.pdf`);
 }
 
-export async function downloadQRImage(qrSvg: SVGSVGElement, accessCode: string) {
+export async function downloadQRImage(
+  qrSvg: SVGSVGElement,
+  accessCode: string,
+  mode: PosterMode = 'attend'
+) {
   const dataUrl = await svgToDataUrl(qrSvg, 512);
   const a = document.createElement('a');
-  a.download = `QR_${accessCode}.png`;
+  const suffix = mode === 'register' ? '사전신청' : '참석확인';
+  a.download = `QR_${suffix}_${accessCode}.png`;
   a.href = dataUrl;
   a.click();
 }
