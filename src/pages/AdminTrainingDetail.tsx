@@ -427,7 +427,7 @@ const AdminTrainingDetail = () => {
           <div className="border-t border-border/50 pt-4">
             <div className="flex flex-wrap gap-2">
               <Button size="sm" onClick={() => navigate(`/admin/trainings/${trainingId}/trainees`)}>
-                <Users className="w-4 h-4 mr-1" />신청자 ({counts.confirmed + counts.waitlisted})
+                <Users className="w-4 h-4 mr-1" />명부 전체보기
               </Button>
               <Button size="sm" variant="outline" onClick={() => setShowStats(true)}>
                 <BarChart3 className="w-4 h-4 mr-1" />통계
