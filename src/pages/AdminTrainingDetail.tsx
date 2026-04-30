@@ -302,8 +302,8 @@ const AdminTrainingDetail = () => {
 
       {/* Info card */}
       <div className="bg-card rounded-xl shadow-sm border border-border/50 p-5 md:p-6 space-y-4 animate-fade-in">
-        <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-5">
-          <div className="space-y-3 flex-1">
+        <div className="space-y-5">
+          <div className="space-y-3">
             <div className="flex items-start justify-between gap-2">
               <h1 className="text-2xl font-bold text-foreground tracking-tight">{training.title}</h1>
               <select value={training.status || '예정'} onChange={(e) => updateStatus(e.target.value)}
@@ -330,9 +330,55 @@ const AdminTrainingDetail = () => {
                 </button>
               </div>
             )}
+          </div>
 
-            {/* Action buttons */}
-            <div className="flex flex-wrap gap-2 pt-2">
+          {/* Two QR Codes: 사전신청 + 참석확인 (side-by-side) */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="bg-primary/5 rounded-xl p-4 text-center space-y-2 border border-primary/20">
+              <div className="flex items-center justify-center gap-1.5">
+                <span className="text-[10px] font-bold bg-primary text-primary-foreground px-1.5 py-0.5 rounded">1단계</span>
+                <span className="text-xs font-semibold text-primary">사전 신청</span>
+              </div>
+              <div ref={qrRegisterRef} className="flex justify-center">
+                <QRCodeSVG value={registerUrl} size={150} level="H" />
+              </div>
+              <div className="flex items-center justify-center gap-1">
+                <Button size="sm" variant="ghost" className="h-7 px-1.5" onClick={copyRegisterLink} aria-label="사전신청 링크 복사">
+                  <Copy className="w-3.5 h-3.5" />
+                </Button>
+                <Button size="sm" variant="ghost" className="h-7 px-1.5" onClick={handleDownloadRegisterQR} aria-label="사전신청 QR 이미지">
+                  <Download className="w-3.5 h-3.5" />
+                </Button>
+                <Button size="sm" variant="ghost" className="h-7 px-1.5" onClick={handleDownloadRegisterPoster} aria-label="사전신청 QR 포스터">
+                  <FileImage className="w-3.5 h-3.5" />
+                </Button>
+              </div>
+            </div>
+            <div className="bg-success/5 rounded-xl p-4 text-center space-y-2 border border-success/20">
+              <div className="flex items-center justify-center gap-1.5">
+                <span className="text-[10px] font-bold bg-success text-success-foreground px-1.5 py-0.5 rounded">2단계</span>
+                <span className="text-xs font-semibold text-success">참석 확인</span>
+              </div>
+              <div ref={qrAttendRef} className="flex justify-center">
+                <QRCodeSVG value={attendUrl} size={150} level="H" />
+              </div>
+              <div className="flex items-center justify-center gap-1">
+                <Button size="sm" variant="ghost" className="h-7 px-1.5" onClick={copyAttendLink} aria-label="참석확인 링크 복사">
+                  <Copy className="w-3.5 h-3.5" />
+                </Button>
+                <Button size="sm" variant="ghost" className="h-7 px-1.5" onClick={handleDownloadAttendQR} aria-label="참석확인 QR 이미지">
+                  <Download className="w-3.5 h-3.5" />
+                </Button>
+                <Button size="sm" variant="ghost" className="h-7 px-1.5" onClick={handleDownloadAttendPoster} aria-label="참석확인 QR 포스터">
+                  <FileImage className="w-3.5 h-3.5" />
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          {/* Action buttons */}
+          <div className="border-t border-border/50 pt-4">
+            <div className="flex flex-wrap gap-2">
               <Button size="sm" onClick={() => navigate(`/admin/trainings/${trainingId}/trainees`)}>
                 <Users className="w-4 h-4 mr-1" />신청자 ({counts.confirmed + counts.waitlisted})
               </Button>
@@ -365,51 +411,6 @@ const AdminTrainingDetail = () => {
                   </AlertDialogFooter>
                 </AlertDialogContent>
               </AlertDialog>
-            </div>
-          </div>
-
-          {/* Two QR Codes: 사전신청 + 참석확인 */}
-          <div className="flex-shrink-0 grid grid-cols-1 sm:grid-cols-2 md:flex md:flex-col gap-3">
-            <div className="bg-primary/5 rounded-xl p-3 text-center space-y-2 border border-primary/20">
-              <div className="flex items-center justify-center gap-1.5">
-                <span className="text-[10px] font-bold bg-primary text-primary-foreground px-1.5 py-0.5 rounded">1단계</span>
-                <span className="text-xs font-semibold text-primary">사전 신청</span>
-              </div>
-              <div ref={qrRegisterRef}>
-                <QRCodeSVG value={registerUrl} size={130} level="H" />
-              </div>
-              <div className="flex items-center justify-center gap-1">
-                <Button size="sm" variant="ghost" className="h-7 px-1.5" onClick={copyRegisterLink} aria-label="사전신청 링크 복사">
-                  <Copy className="w-3.5 h-3.5" />
-                </Button>
-                <Button size="sm" variant="ghost" className="h-7 px-1.5" onClick={handleDownloadRegisterQR} aria-label="사전신청 QR 이미지">
-                  <Download className="w-3.5 h-3.5" />
-                </Button>
-                <Button size="sm" variant="ghost" className="h-7 px-1.5" onClick={handleDownloadRegisterPoster} aria-label="사전신청 QR 포스터">
-                  <FileImage className="w-3.5 h-3.5" />
-                </Button>
-              </div>
-            </div>
-            <div className="bg-success/5 rounded-xl p-3 text-center space-y-2 border border-success/20">
-              <div className="flex items-center justify-center gap-1.5">
-                <span className="text-[10px] font-bold bg-success text-success-foreground px-1.5 py-0.5 rounded">2단계</span>
-                <span className="text-xs font-semibold text-success">참석 확인</span>
-              </div>
-              <div ref={qrAttendRef}>
-                <QRCodeSVG value={attendUrl} size={130} level="H" />
-              </div>
-              <div className="flex items-center justify-center gap-1">
-                <Button size="sm" variant="ghost" className="h-7 px-1.5" onClick={copyAttendLink} aria-label="참석확인 링크 복사">
-                  <Copy className="w-3.5 h-3.5" />
-                </Button>
-                <Button size="sm" variant="ghost" className="h-7 px-1.5" onClick={handleDownloadAttendQR} aria-label="참석확인 QR 이미지">
-                  <Download className="w-3.5 h-3.5" />
-                </Button>
-                <Button size="sm" variant="ghost" className="h-7 px-1.5" onClick={handleDownloadAttendPoster} aria-label="참석확인 QR 포스터">
-                  <FileImage className="w-3.5 h-3.5" />
-                </Button>
-              </div>
-              <p className="text-[10px] text-muted-foreground/70 font-mono">{training.access_code}</p>
             </div>
           </div>
         </div>
