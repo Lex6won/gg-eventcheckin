@@ -80,7 +80,8 @@ const AdminEventDetail = () => {
   const [removePosterFlag, setRemovePosterFlag] = useState(false);
   const editFileInputRef = useRef<HTMLInputElement>(null);
   const [saving, setSaving] = useState(false);
-  const qrRef = useRef<HTMLDivElement>(null);
+  const qrAttendRef = useRef<HTMLDivElement>(null);
+  const qrRegisterRef = useRef<HTMLDivElement>(null);
 
   const fetchData = useCallback(async () => {
     const [eventRes, attendeesRes] = await Promise.all([
@@ -108,24 +109,47 @@ const AdminEventDetail = () => {
   }, [user, fetchData]);
 
   const attendUrl = `${getPublicOrigin()}/attend/${event?.access_code}`;
+  const registerUrl = `${getPublicOrigin()}/register/${event?.access_code}`;
 
-  const handleCopyLink = () => {
+  const handleCopyAttendLink = () => {
     navigator.clipboard.writeText(attendUrl);
-    toast.success('참석 등록 링크가 복사되었습니다.');
+    toast.success('참석 확인 링크가 복사되었습니다.');
   };
 
-  const handleDownloadQR = () => {
-    const svg = qrRef.current?.querySelector('svg') as SVGSVGElement | null;
+  const handleCopyRegisterLink = () => {
+    navigator.clipboard.writeText(registerUrl);
+    toast.success('사전 신청 링크가 복사되었습니다.');
+  };
+
+  const handleDownloadAttendQR = () => {
+    const svg = qrAttendRef.current?.querySelector('svg') as SVGSVGElement | null;
     if (!svg || !event) return;
-    downloadQRImage(svg, event.access_code);
+    downloadQRImage(svg, event.access_code, 'attend');
   };
 
-  const handleDownloadPoster = async () => {
-    const svg = qrRef.current?.querySelector('svg') as SVGSVGElement | null;
+  const handleDownloadRegisterQR = () => {
+    const svg = qrRegisterRef.current?.querySelector('svg') as SVGSVGElement | null;
+    if (!svg || !event) return;
+    downloadQRImage(svg, event.access_code, 'register');
+  };
+
+  const handleDownloadAttendPoster = async () => {
+    const svg = qrAttendRef.current?.querySelector('svg') as SVGSVGElement | null;
     if (!svg || !event) return;
     try {
-      await downloadQRPoster(event, svg);
-      toast.success('QR 포스터가 다운로드되었습니다.');
+      await downloadQRPoster(event, svg, 'attend');
+      toast.success('참석 확인 QR 포스터가 다운로드되었습니다.');
+    } catch {
+      toast.error('포스터 다운로드에 실패했습니다.');
+    }
+  };
+
+  const handleDownloadRegisterPoster = async () => {
+    const svg = qrRegisterRef.current?.querySelector('svg') as SVGSVGElement | null;
+    if (!svg || !event) return;
+    try {
+      await downloadQRPoster(event, svg, 'register');
+      toast.success('사전 신청 QR 포스터가 다운로드되었습니다.');
     } catch {
       toast.error('포스터 다운로드에 실패했습니다.');
     }
@@ -322,20 +346,11 @@ const AdminEventDetail = () => {
               <Button size="sm" variant="outline" onClick={() => setShowStats(true)} aria-label="통계 보기">
                 <BarChart3 className="w-4 h-4 mr-1" /> 통계
               </Button>
-              <Button size="sm" variant="outline" onClick={handleCopyLink} aria-label="참석 등록 링크 복사">
-                <Copy className="w-4 h-4 mr-1" /> 링크 복사
-              </Button>
               <Button size="sm" variant="outline" onClick={() => navigate(`/admin/events/${eventId}/qr`)} aria-label="QR코드 전체화면">
                 <Maximize2 className="w-4 h-4 mr-1" /> QR 전체화면
               </Button>
               <Button size="sm" onClick={() => navigate(`/admin/events/${eventId}/checkin`)} aria-label="현장 체크인 키오스크" className="bg-success hover:bg-success/90 text-success-foreground">
                 <ScanLine className="w-4 h-4 mr-1" /> 현장 체크인
-              </Button>
-              <Button size="sm" variant="outline" onClick={handleDownloadQR} aria-label="QR코드 이미지 다운로드">
-                <Download className="w-4 h-4 mr-1" /> QR 이미지
-              </Button>
-              <Button size="sm" variant="outline" onClick={handleDownloadPoster} aria-label="행사 QR 포스터 PDF 다운로드">
-                <FileImage className="w-4 h-4 mr-1" /> 행사QR포스터
               </Button>
               <Button size="sm" variant="outline" onClick={openEdit} aria-label="행사 수정">
                 <Pencil className="w-4 h-4 mr-1" /> 수정
@@ -346,11 +361,51 @@ const AdminEventDetail = () => {
             </div>
           </div>
 
-          {/* QR Code */}
-          <div ref={qrRef} className="flex-shrink-0 bg-secondary/50 rounded-xl p-4 text-center space-y-2">
-            <QRCodeSVG value={attendUrl} size={160} level="H" />
-            <p className="text-xs text-muted-foreground">QR코드로 참석 등록</p>
-            <p className="text-[10px] text-muted-foreground/70 font-mono">{event?.access_code}</p>
+          {/* Two QR Codes: 사전신청 + 참석확인 */}
+          <div className="flex-shrink-0 grid grid-cols-1 sm:grid-cols-2 md:flex md:flex-col gap-3">
+            {/* 1단계 사전신청 */}
+            <div className="bg-primary/5 rounded-xl p-3 text-center space-y-2 border border-primary/20">
+              <div className="flex items-center justify-center gap-1.5">
+                <span className="text-[10px] font-bold bg-primary text-primary-foreground px-1.5 py-0.5 rounded">1단계</span>
+                <span className="text-xs font-semibold text-primary">사전 신청</span>
+              </div>
+              <div ref={qrRegisterRef}>
+                <QRCodeSVG value={registerUrl} size={130} level="H" />
+              </div>
+              <div className="flex items-center justify-center gap-1">
+                <Button size="sm" variant="ghost" className="h-7 px-1.5" onClick={handleCopyRegisterLink} aria-label="사전신청 링크 복사">
+                  <Copy className="w-3.5 h-3.5" />
+                </Button>
+                <Button size="sm" variant="ghost" className="h-7 px-1.5" onClick={handleDownloadRegisterQR} aria-label="사전신청 QR 이미지">
+                  <Download className="w-3.5 h-3.5" />
+                </Button>
+                <Button size="sm" variant="ghost" className="h-7 px-1.5" onClick={handleDownloadRegisterPoster} aria-label="사전신청 QR 포스터">
+                  <FileImage className="w-3.5 h-3.5" />
+                </Button>
+              </div>
+            </div>
+            {/* 2단계 참석확인 */}
+            <div className="bg-success/5 rounded-xl p-3 text-center space-y-2 border border-success/20">
+              <div className="flex items-center justify-center gap-1.5">
+                <span className="text-[10px] font-bold bg-success text-success-foreground px-1.5 py-0.5 rounded">2단계</span>
+                <span className="text-xs font-semibold text-success">참석 확인</span>
+              </div>
+              <div ref={qrAttendRef}>
+                <QRCodeSVG value={attendUrl} size={130} level="H" />
+              </div>
+              <div className="flex items-center justify-center gap-1">
+                <Button size="sm" variant="ghost" className="h-7 px-1.5" onClick={handleCopyAttendLink} aria-label="참석확인 링크 복사">
+                  <Copy className="w-3.5 h-3.5" />
+                </Button>
+                <Button size="sm" variant="ghost" className="h-7 px-1.5" onClick={handleDownloadAttendQR} aria-label="참석확인 QR 이미지">
+                  <Download className="w-3.5 h-3.5" />
+                </Button>
+                <Button size="sm" variant="ghost" className="h-7 px-1.5" onClick={handleDownloadAttendPoster} aria-label="참석확인 QR 포스터">
+                  <FileImage className="w-3.5 h-3.5" />
+                </Button>
+              </div>
+              <p className="text-[10px] text-muted-foreground/70 font-mono">{event?.access_code}</p>
+            </div>
           </div>
         </div>
       </div>
