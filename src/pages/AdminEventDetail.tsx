@@ -268,6 +268,49 @@ const AdminEventDetail = () => {
       .slice(0, 8);
   })();
 
+  // 신청자 = 사전신청자 (status: registered/checked_in). walk-in 제외
+  const applicants = useMemo(
+    () => attendees.filter((a) => a.status === 'registered' || a.status === 'checked_in'),
+    [attendees]
+  );
+  // 참석자 = 서명한 사람 (사전신청 후 체크인 + walk-in)
+  const attendedList = useMemo(
+    () => attendees.filter((a) => !!a.signature_url && (a.status === 'checked_in' || a.status === 'walk_in')),
+    [attendees]
+  );
+  const walkInCount = useMemo(
+    () => attendees.filter((a) => a.status === 'walk_in').length,
+    [attendees]
+  );
+  const noShowCount = useMemo(
+    () => attendees.filter((a) => a.status === 'registered').length,
+    [attendees]
+  );
+
+  const tabRows = tab === 'applicants' ? applicants : attendedList;
+
+  const handleTabExport = async (fmt: 'xlsx' | 'pdf') => {
+    if (!event || tabRows.length === 0) return;
+    setExporting(fmt);
+    try {
+      const rows = tabRows as unknown as RosterAttendee[];
+      const opts = { showCarNumber: event.show_car_number, kind: '행사' as const };
+      if (tab === 'applicants') {
+        if (fmt === 'xlsx') await exportApplicantsToExcel(event, rows, opts);
+        else await exportApplicantsToPDF(event, rows, opts);
+        toast.success('신청자 명부가 다운로드되었습니다.');
+      } else {
+        if (fmt === 'xlsx') await exportAttendeesRosterToExcel(event, rows, opts);
+        else await exportAttendeesRosterToPDF(event, rows, opts);
+        toast.success('참석자 명부가 다운로드되었습니다.');
+      }
+    } catch {
+      toast.error('다운로드에 실패했습니다.');
+    } finally {
+      setExporting(null);
+    }
+  };
+
   const timeStats = (() => {
     const map = new Map<string, number>();
     attendees.forEach((a) => {
