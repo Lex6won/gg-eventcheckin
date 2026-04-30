@@ -83,6 +83,8 @@ const AdminTrainingDetail = () => {
   const [saving, setSaving] = useState(false);
   const qrAttendRef = useRef<HTMLDivElement>(null);
   const qrRegisterRef = useRef<HTMLDivElement>(null);
+  const [tab, setTab] = useState<'applicants' | 'attendees'>('applicants');
+  const [exporting, setExporting] = useState<'xlsx' | 'pdf' | null>(null);
 
   const fetchData = useCallback(async () => {
     if (!trainingId) return;
@@ -103,6 +105,28 @@ const AdminTrainingDetail = () => {
     waitlisted: trainees.filter((t) => t.status === 'waitlisted').length,
     cancelled: trainees.filter((t) => t.status === 'cancelled').length,
   }), [trainees]);
+
+  // 신청자 = walk_in 제외 (사전신청자 전체)
+  const applicants = useMemo(
+    () => trainees.filter((t) => t.status !== 'walk_in'),
+    [trainees]
+  );
+  // 참석자 = 서명 완료 (사전신청+체크인 confirmed + 현장등록 walk_in)
+  const attendedList = useMemo(
+    () => trainees.filter((t) => !!t.signature_url && (t.status === 'confirmed' || t.status === 'walk_in')),
+    [trainees]
+  );
+  const walkInCount = useMemo(
+    () => trainees.filter((t) => t.status === 'walk_in').length,
+    [trainees]
+  );
+  // 미참석 = 사전신청 확정인데 서명 없음
+  const noShowCount = useMemo(
+    () => trainees.filter((t) => t.status === 'confirmed' && !t.signature_url).length,
+    [trainees]
+  );
+
+  const tabRows = tab === 'applicants' ? applicants : attendedList;
 
   // Stats
   const orgStats = useMemo(() => {
@@ -273,20 +297,40 @@ const AdminTrainingDetail = () => {
 
   const updateEdit = (key: string, value: any) => setEditForm({ ...editForm, [key]: value });
 
-  const handleExportExcel = async () => {
-    if (!training) return;
+  const handleTabExport = async (fmt: 'xlsx' | 'pdf') => {
+    if (!training || tabRows.length === 0) return;
+    setExporting(fmt);
     try {
-      await exportTraineesToExcel(training, trainees, { showCarNumber: training.show_car_number });
-      toast.success('엑셀 파일이 다운로드되었습니다.');
-    } catch { toast.error('엑셀 다운로드에 실패했습니다.'); }
-  };
-
-  const handleExportPDF = async () => {
-    if (!training) return;
-    try {
-      await exportTraineesToPDF(training, trainees, { showCarNumber: training.show_car_number });
-      toast.success('PDF 파일이 다운로드되었습니다.');
-    } catch { toast.error('PDF 다운로드에 실패했습니다.'); }
+      const rows: RosterAttendee[] = tabRows.map((t) => ({
+        id: t.id,
+        org_type: t.org_type,
+        organization: t.organization,
+        department: t.department,
+        position: t.position,
+        name: t.name,
+        email: null,
+        phone: null,
+        car_number: t.car_number,
+        signature_url: t.signature_url || null,
+        status: t.status,
+        registered_at: t.registered_at,
+        checked_in_at: t.confirmed_at,
+      }));
+      const opts = { showCarNumber: !!training.show_car_number, kind: '교육' as const };
+      if (tab === 'applicants') {
+        if (fmt === 'xlsx') await exportApplicantsToExcel(training, rows, opts);
+        else await exportApplicantsToPDF(training, rows, opts);
+        toast.success('신청자 명부가 다운로드되었습니다.');
+      } else {
+        if (fmt === 'xlsx') await exportAttendeesRosterToExcel(training, rows, opts);
+        else await exportAttendeesRosterToPDF(training, rows, opts);
+        toast.success('참석자 명부가 다운로드되었습니다.');
+      }
+    } catch {
+      toast.error('다운로드에 실패했습니다.');
+    } finally {
+      setExporting(null);
+    }
   };
 
   if (loading || !training) {
