@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/lib/auth';
 import { supabase } from '@/integrations/supabase/client';
@@ -14,11 +14,15 @@ import {
 } from '@/components/ui/dialog';
 import {
   ArrowLeft, Users, Calendar, MapPin, Clock, Loader2, Trash2, Search, X,
-  FileSpreadsheet, FileText,
+  FileSpreadsheet, FileText, ClipboardList, CheckCircle2, UserPlus,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { exportToExcel, exportToPDF } from '@/lib/exportAttendees';
+import {
+  exportApplicantsToExcel, exportApplicantsToPDF,
+  exportAttendeesRosterToExcel, exportAttendeesRosterToPDF,
+  type RosterAttendee,
+} from '@/lib/exportAttendees';
 
 interface Attendee {
   id: string;
@@ -27,10 +31,13 @@ interface Attendee {
   department: string | null;
   position: string | null;
   name: string;
+  email: string | null;
   phone: string | null;
   car_number: string | null;
   inquiry: string | null;
-  signature_url: string;
+  signature_url: string | null;
+  status: string;
+  registered_at: string | null;
   checked_in_at: string | null;
 }
 
@@ -55,39 +62,13 @@ const AdminEventAttendees = () => {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [signaturePreview, setSignaturePreview] = useState<string | null>(null);
-  const [exportingExcel, setExportingExcel] = useState(false);
-  const [exportingPdf, setExportingPdf] = useState(false);
-
-  const handleExportExcel = async () => {
-    if (!event) return;
-    setExportingExcel(true);
-    try {
-      await exportToExcel(event, attendees, { showCarNumber: event.show_car_number });
-      toast.success('엑셀 파일이 다운로드되었습니다.');
-    } catch (e) {
-      toast.error('엑셀 다운로드에 실패했습니다.');
-    } finally {
-      setExportingExcel(false);
-    }
-  };
-
-  const handleExportPdf = async () => {
-    if (!event) return;
-    setExportingPdf(true);
-    try {
-      await exportToPDF(event, attendees, { showCarNumber: event.show_car_number });
-      toast.success('PDF 파일이 다운로드되었습니다.');
-    } catch (e) {
-      toast.error('PDF 다운로드에 실패했습니다.');
-    } finally {
-      setExportingPdf(false);
-    }
-  };
+  const [tab, setTab] = useState<'applicants' | 'attendees'>('applicants');
+  const [exporting, setExporting] = useState<'xlsx' | 'pdf' | null>(null);
 
   const fetchData = useCallback(async () => {
     const [eventRes, attendeesRes] = await Promise.all([
       supabase.from('events').select('id, title, event_date, start_time, end_time, location, organizer, show_car_number').eq('id', eventId!).single(),
-      supabase.from('attendees').select('*').eq('event_id', eventId!).order('checked_in_at', { ascending: true }),
+      supabase.from('attendees').select('*').eq('event_id', eventId!).order('registered_at', { ascending: true }),
     ]);
 
     if (eventRes.error) {
@@ -134,6 +115,19 @@ const AdminEventAttendees = () => {
       .on(
         'postgres_changes',
         {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'attendees',
+          filter: `event_id=eq.${eventId}`,
+        },
+        (payload) => {
+          const updated = payload.new as Attendee;
+          setAttendees((prev) => prev.map((a) => (a.id === updated.id ? updated : a)));
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
           event: 'DELETE',
           schema: 'public',
           table: 'attendees',
@@ -156,20 +150,69 @@ const AdminEventAttendees = () => {
     if (error) {
       toast.error('삭제에 실패했습니다.');
     } else {
-      toast.success(`${attendee.name}님의 참석 기록이 삭제되었습니다.`);
+      toast.success(`${attendee.name}님의 기록이 삭제되었습니다.`);
       setAttendees((prev) => prev.filter((a) => a.id !== attendee.id));
     }
   };
 
-  const filtered = search
-    ? attendees.filter(
-        (a) =>
-          a.name.includes(search) ||
-          a.organization.includes(search) ||
-          (a.department && a.department.includes(search)) ||
-          (a.car_number && a.car_number.includes(search))
-      )
-    : attendees;
+  // 신청자 = 사전신청자 (status: registered/checked_in) - walk-in 제외
+  const applicants = useMemo(
+    () => attendees.filter((a) => a.status === 'registered' || a.status === 'checked_in'),
+    [attendees]
+  );
+  // 참석자 = 서명한 사람 (사전신청 후 체크인 + walk-in)
+  const attendedList = useMemo(
+    () => attendees.filter((a) => !!a.signature_url && (a.status === 'checked_in' || a.status === 'walk_in')),
+    [attendees]
+  );
+  const noShowCount = useMemo(
+    () => attendees.filter((a) => a.status === 'registered').length,
+    [attendees]
+  );
+  const walkInCount = useMemo(
+    () => attendees.filter((a) => a.status === 'walk_in').length,
+    [attendees]
+  );
+
+  const baseList = tab === 'applicants' ? applicants : attendedList;
+  const filtered = useMemo(() => {
+    const s = search.trim().toLowerCase();
+    if (!s) return baseList;
+    return baseList.filter((a) =>
+      a.name.toLowerCase().includes(s) ||
+      a.organization.toLowerCase().includes(s) ||
+      (a.department && a.department.toLowerCase().includes(s)) ||
+      (a.email && a.email.toLowerCase().includes(s)) ||
+      (a.car_number && a.car_number.includes(search))
+    );
+  }, [baseList, search]);
+
+  const handleExport = async (fmt: 'xlsx' | 'pdf') => {
+    if (!event || filtered.length === 0) return;
+    setExporting(fmt);
+    try {
+      const rows = filtered as unknown as RosterAttendee[];
+      const opts = { showCarNumber: event.show_car_number, kind: '행사' as const };
+      if (tab === 'applicants') {
+        if (fmt === 'xlsx') await exportApplicantsToExcel(event, rows, opts);
+        else await exportApplicantsToPDF(event, rows, opts);
+      } else {
+        if (fmt === 'xlsx') await exportAttendeesRosterToExcel(event, rows, opts);
+        else await exportAttendeesRosterToPDF(event, rows, opts);
+      }
+      toast.success('파일이 다운로드되었습니다.');
+    } catch {
+      toast.error('다운로드에 실패했습니다.');
+    } finally {
+      setExporting(null);
+    }
+  };
+
+  const statusBadge = (s: string) => {
+    if (s === 'checked_in') return <span className="text-[10px] bg-success/10 text-success px-1.5 py-0.5 rounded">참석</span>;
+    if (s === 'walk_in') return <span className="text-[10px] bg-warning/10 text-warning px-1.5 py-0.5 rounded">현장등록</span>;
+    return <span className="text-[10px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded">신청</span>;
+  };
 
   if (loading || authLoading) {
     return (
@@ -190,57 +233,86 @@ const AdminEventAttendees = () => {
         행사 상세
       </button>
 
-      {/* Event summary + count */}
-      <div className="bg-card rounded-2xl shadow-sm border border-border/50 p-5 space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div className="space-y-2">
-            <h1 className="text-xl font-bold text-foreground">{event?.title}</h1>
-            <div className="flex flex-wrap gap-3 text-sm text-muted-foreground">
-              <span className="inline-flex items-center gap-1">
-                <Calendar className="w-4 h-4" /> {event?.event_date}
-              </span>
-              <span className="inline-flex items-center gap-1">
-                <Clock className="w-4 h-4" /> {event?.start_time?.slice(0, 5)} ~ {event?.end_time?.slice(0, 5)}
-              </span>
-              <span className="inline-flex items-center gap-1">
-                <MapPin className="w-4 h-4" /> {event?.location}
-              </span>
-            </div>
+      {/* Event summary */}
+      <div className="bg-card rounded-2xl shadow-sm border border-border/50 p-5 space-y-3">
+        <h1 className="text-xl font-bold text-foreground">{event?.title}</h1>
+        <div className="flex flex-wrap gap-3 text-sm text-muted-foreground">
+          <span className="inline-flex items-center gap-1"><Calendar className="w-4 h-4" /> {event?.event_date}</span>
+          <span className="inline-flex items-center gap-1"><Clock className="w-4 h-4" /> {event?.start_time?.slice(0, 5)} ~ {event?.end_time?.slice(0, 5)}</span>
+          <span className="inline-flex items-center gap-1"><MapPin className="w-4 h-4" /> {event?.location}</span>
+        </div>
+      </div>
+
+      {/* Count cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="bg-card rounded-xl shadow-sm border border-border/50 p-4 flex items-center gap-3">
+          <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center"><ClipboardList className="w-5 h-5 text-primary" /></div>
+          <div>
+            <p className="text-2xl font-bold tabular-nums">{applicants.length}</p>
+            <p className="text-[11px] text-muted-foreground">사전 신청</p>
           </div>
-          <div className="flex items-center gap-3 bg-primary/10 rounded-xl px-5 py-3">
-            <Users className="w-6 h-6 text-primary" />
-            <div>
-              <p className="text-3xl font-bold text-primary tabular-nums">{attendees.length}</p>
-              <p className="text-xs text-primary/70">총 참석자</p>
-            </div>
+        </div>
+        <div className="bg-card rounded-xl shadow-sm border border-border/50 p-4 flex items-center gap-3">
+          <div className="w-10 h-10 rounded-lg bg-success/10 flex items-center justify-center"><CheckCircle2 className="w-5 h-5 text-success" /></div>
+          <div>
+            <p className="text-2xl font-bold tabular-nums">{attendedList.length}</p>
+            <p className="text-[11px] text-muted-foreground">참석 완료</p>
+          </div>
+        </div>
+        <div className="bg-card rounded-xl shadow-sm border border-border/50 p-4 flex items-center gap-3">
+          <div className="w-10 h-10 rounded-lg bg-warning/10 flex items-center justify-center"><UserPlus className="w-5 h-5 text-warning" /></div>
+          <div>
+            <p className="text-2xl font-bold tabular-nums">{walkInCount}</p>
+            <p className="text-[11px] text-muted-foreground">현장 등록</p>
+          </div>
+        </div>
+        <div className="bg-card rounded-xl shadow-sm border border-border/50 p-4 flex items-center gap-3">
+          <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center"><X className="w-5 h-5 text-muted-foreground" /></div>
+          <div>
+            <p className="text-2xl font-bold tabular-nums">{noShowCount}</p>
+            <p className="text-[11px] text-muted-foreground">미참석</p>
           </div>
         </div>
       </div>
 
-      {/* Export buttons */}
-      <div className="flex flex-wrap gap-2">
-        <Button
-          onClick={handleExportExcel}
-          disabled={exportingExcel || attendees.length === 0}
-          className="bg-emerald-600 hover:bg-emerald-700 text-white"
-        >
-          {exportingExcel ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <FileSpreadsheet className="w-4 h-4 mr-1" />}
-          엑셀 다운로드
+      {/* Tabs */}
+      <div className="flex gap-2" role="tablist">
+        <button role="tab" aria-selected={tab === 'applicants'} onClick={() => setTab('applicants')}
+          className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+            tab === 'applicants' ? 'bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
+          }`}>
+          <ClipboardList className="w-4 h-4" />신청자 명부 ({applicants.length})
+        </button>
+        <button role="tab" aria-selected={tab === 'attendees'} onClick={() => setTab('attendees')}
+          className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+            tab === 'attendees' ? 'bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
+          }`}>
+          <CheckCircle2 className="w-4 h-4" />참석자 명부 ({attendedList.length})
+        </button>
+      </div>
+
+      {/* Per-tab export */}
+      <div className="flex flex-wrap items-center gap-2">
+        <p className="text-xs text-muted-foreground mr-1">
+          {tab === 'applicants' ? '사전 신청한 모든 인원 (서명 미포함)' : '서명 완료한 참석자 (사전신청 + 현장등록)'}
+        </p>
+        <div className="flex-1" />
+        <Button onClick={() => handleExport('xlsx')} disabled={!!exporting || filtered.length === 0}
+          className="bg-emerald-600 hover:bg-emerald-700 text-white" size="sm">
+          {exporting === 'xlsx' ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <FileSpreadsheet className="w-4 h-4 mr-1" />}
+          엑셀
         </Button>
-        <Button
-          onClick={handleExportPdf}
-          disabled={exportingPdf || attendees.length === 0}
-          className="bg-red-600 hover:bg-red-700 text-white"
-        >
-          {exportingPdf ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <FileText className="w-4 h-4 mr-1" />}
-          PDF 출력
+        <Button onClick={() => handleExport('pdf')} disabled={!!exporting || filtered.length === 0}
+          className="bg-red-600 hover:bg-red-700 text-white" size="sm">
+          {exporting === 'pdf' ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <FileText className="w-4 h-4 mr-1" />}
+          PDF
         </Button>
       </div>
 
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
         <Input
-          placeholder="이름, 소속으로 검색..."
+          placeholder="이름, 소속, 이메일로 검색..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="pl-9 bg-card"
@@ -255,12 +327,13 @@ const AdminEventAttendees = () => {
         )}
       </div>
 
-      {/* Attendees list */}
+      {/* List */}
       {filtered.length === 0 ? (
         <div className="text-center py-20 space-y-3">
           <Users className="w-12 h-12 mx-auto text-muted-foreground/40" />
           <p className="text-muted-foreground">
-            {search ? '검색 결과가 없습니다.' : '아직 참석 등록된 인원이 없습니다.'}
+            {search ? '검색 결과가 없습니다.' :
+              tab === 'applicants' ? '아직 사전 신청한 인원이 없습니다.' : '아직 참석 확인된 인원이 없습니다.'}
           </p>
         </div>
       ) : isMobile ? (
@@ -273,17 +346,19 @@ const AdminEventAttendees = () => {
             >
               <div className="flex items-start justify-between">
                 <div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-xs text-muted-foreground tabular-nums">#{i + 1}</span>
                     <span className="font-semibold text-foreground">{a.name}</span>
                     {a.position && (
                       <span className="text-xs text-muted-foreground">{a.position}</span>
                     )}
+                    {statusBadge(a.status)}
                   </div>
                   <p className="text-sm text-muted-foreground mt-0.5">
                     {a.org_type && <span className="text-xs bg-secondary px-1.5 py-0.5 rounded mr-1">{a.org_type}</span>}
                     {a.organization} {a.department && `· ${a.department}`}
                   </p>
+                  {a.email && <p className="text-xs text-muted-foreground mt-0.5">✉ {a.email}</p>}
                   {a.car_number && (
                     <p className="text-xs text-muted-foreground mt-0.5">🚗 {a.car_number}</p>
                   )}
@@ -296,9 +371,9 @@ const AdminEventAttendees = () => {
                   </AlertDialogTrigger>
                   <AlertDialogContent>
                     <AlertDialogHeader>
-                      <AlertDialogTitle>참석 기록 삭제</AlertDialogTitle>
+                      <AlertDialogTitle>기록 삭제</AlertDialogTitle>
                       <AlertDialogDescription>
-                        {a.name}님의 참석 기록을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.
+                        {a.name}님의 기록을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.
                       </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
@@ -310,19 +385,17 @@ const AdminEventAttendees = () => {
                   </AlertDialogContent>
                 </AlertDialog>
               </div>
-              <div className="flex items-center justify-end text-sm">
-                <span className="text-xs text-muted-foreground tabular-nums">
-                  {a.checked_in_at
-                    ? new Date(a.checked_in_at).toLocaleString('ko-KR', {
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })
+              <div className="flex items-center justify-between text-xs text-muted-foreground tabular-nums">
+                <span>
+                  {tab === 'applicants' ? '신청 ' : '참석 '}
+                  {((tab === 'applicants' ? a.registered_at : a.checked_in_at) || '')
+                    ? new Date((tab === 'applicants' ? a.registered_at : a.checked_in_at)!).toLocaleString('ko-KR', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
                     : '-'}
                 </span>
               </div>
-              {a.signature_url && (
+              {tab === 'attendees' && a.signature_url && (
                 <button
-                  onClick={() => setSignaturePreview(a.signature_url)}
+                  onClick={() => setSignaturePreview(a.signature_url!)}
                   className="block"
                 >
                   <img
@@ -343,14 +416,16 @@ const AdminEventAttendees = () => {
               <thead>
                 <tr className="bg-secondary/50 text-muted-foreground">
                   <th className="px-4 py-3 text-left font-medium w-12">번호</th>
+                  <th className="px-4 py-3 text-left font-medium">상태</th>
                   <th className="px-4 py-3 text-left font-medium">구분</th>
                   <th className="px-4 py-3 text-left font-medium">기관명</th>
                   <th className="px-4 py-3 text-left font-medium">부서</th>
                   <th className="px-4 py-3 text-left font-medium">직급</th>
                   <th className="px-4 py-3 text-left font-medium">성명</th>
+                  {tab === 'applicants' && <th className="px-4 py-3 text-left font-medium">이메일</th>}
                   {event?.show_car_number && <th className="px-4 py-3 text-left font-medium">차량번호</th>}
-                  <th className="px-4 py-3 text-left font-medium">서명</th>
-                  <th className="px-4 py-3 text-left font-medium">등록시각</th>
+                  {tab === 'attendees' && <th className="px-4 py-3 text-left font-medium">서명</th>}
+                  <th className="px-4 py-3 text-left font-medium">{tab === 'applicants' ? '신청일시' : '참석시각'}</th>
                   <th className="px-4 py-3 text-left font-medium w-12"></th>
                 </tr>
               </thead>
@@ -361,31 +436,32 @@ const AdminEventAttendees = () => {
                     className="border-t border-border/30 hover:bg-secondary/30 transition-colors"
                   >
                     <td className="px-4 py-3 tabular-nums text-muted-foreground">{i + 1}</td>
+                    <td className="px-4 py-3">{statusBadge(a.status)}</td>
                     <td className="px-4 py-3 text-muted-foreground">{a.org_type || '-'}</td>
                     <td className="px-4 py-3 text-foreground">{a.organization}</td>
                     <td className="px-4 py-3 text-muted-foreground">{a.department || '-'}</td>
                     <td className="px-4 py-3 text-muted-foreground">{a.position || '-'}</td>
                     <td className="px-4 py-3 font-medium text-foreground">{a.name}</td>
+                    {tab === 'applicants' && <td className="px-4 py-3 text-muted-foreground text-xs">{a.email || '-'}</td>}
                     {event?.show_car_number && <td className="px-4 py-3 text-muted-foreground">{a.car_number || '-'}</td>}
-                    <td className="px-4 py-3">
-                      {a.signature_url ? (
-                        <button onClick={() => setSignaturePreview(a.signature_url)}>
-                          <img
-                            src={a.signature_url}
-                            alt={`${a.name} 서명`}
-                            className="h-8 w-auto border border-border/50 rounded bg-white p-0.5 hover:shadow-md transition-shadow cursor-pointer"
-                          />
-                        </button>
-                      ) : (
-                        <span className="text-muted-foreground">-</span>
-                      )}
-                    </td>
+                    {tab === 'attendees' && (
+                      <td className="px-4 py-3">
+                        {a.signature_url ? (
+                          <button onClick={() => setSignaturePreview(a.signature_url!)}>
+                            <img
+                              src={a.signature_url}
+                              alt={`${a.name} 서명`}
+                              className="h-8 w-auto border border-border/50 rounded bg-white p-0.5 hover:shadow-md transition-shadow cursor-pointer"
+                            />
+                          </button>
+                        ) : (
+                          <span className="text-muted-foreground">-</span>
+                        )}
+                      </td>
+                    )}
                     <td className="px-4 py-3 tabular-nums text-muted-foreground text-xs">
-                      {a.checked_in_at
-                        ? new Date(a.checked_in_at).toLocaleString('ko-KR', {
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })
+                      {(tab === 'applicants' ? a.registered_at : a.checked_in_at)
+                        ? new Date((tab === 'applicants' ? a.registered_at : a.checked_in_at)!).toLocaleString('ko-KR', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
                         : '-'}
                     </td>
                     <td className="px-4 py-3">
@@ -397,9 +473,9 @@ const AdminEventAttendees = () => {
                         </AlertDialogTrigger>
                         <AlertDialogContent>
                           <AlertDialogHeader>
-                            <AlertDialogTitle>참석 기록 삭제</AlertDialogTitle>
+                            <AlertDialogTitle>기록 삭제</AlertDialogTitle>
                             <AlertDialogDescription>
-                              {a.name}님의 참석 기록을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.
+                              {a.name}님의 기록을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.
                             </AlertDialogDescription>
                           </AlertDialogHeader>
                           <AlertDialogFooter>
