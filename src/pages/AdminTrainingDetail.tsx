@@ -12,13 +12,16 @@ import {
   ArrowLeft, Loader2, Calendar, Clock, MapPin, User, Hash, Users,
   Copy, QrCode, Trash2, Pencil, Download, FileImage, BarChart3,
   ImagePlus, X, CheckCircle2, FileSpreadsheet, FileText, Maximize2, ScanLine,
+  ClipboardList, UserPlus,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { QRCodeSVG } from 'qrcode.react';
 import { getPublicOrigin } from '@/lib/getPublicUrl';
 import { downloadQRImage, downloadQRPoster } from '@/lib/qrExport';
 import {
-  exportTraineesToExcel, exportTraineesToPDF, type TraineeRow,
+  exportApplicantsToExcel, exportApplicantsToPDF,
+  exportAttendeesRosterToExcel, exportAttendeesRosterToPDF,
+  type TraineeRow, type RosterAttendee,
 } from '@/lib/exportAttendees';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
