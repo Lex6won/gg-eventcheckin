@@ -90,6 +90,8 @@ const AdminEventDetail = () => {
   const [saving, setSaving] = useState(false);
   const qrAttendRef = useRef<HTMLDivElement>(null);
   const qrRegisterRef = useRef<HTMLDivElement>(null);
+  const [tab, setTab] = useState<'applicants' | 'attendees'>('applicants');
+  const [exporting, setExporting] = useState<'xlsx' | 'pdf' | null>(null);
 
   const fetchData = useCallback(async () => {
     const [eventRes, attendeesRes] = await Promise.all([
