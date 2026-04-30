@@ -5,12 +5,14 @@ import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
-  ArrowLeft, Loader2, Download, Search, CheckCircle2, XCircle, Clock,
-  FileSpreadsheet, FileText, Trash2,
+  ArrowLeft, Loader2, Search, CheckCircle2, XCircle, Clock,
+  FileSpreadsheet, FileText, Trash2, ClipboardList, UserPlus,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
-  exportTraineesToExcel, exportTraineesToPDF, type TraineeRow,
+  exportApplicantsToExcel, exportApplicantsToPDF,
+  exportAttendeesRosterToExcel, exportAttendeesRosterToPDF,
+  type RosterAttendee,
 } from '@/lib/exportAttendees';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -25,9 +27,10 @@ interface Trainee {
   department: string | null;
   position: string | null;
   name: string;
+  email: string | null;
   car_number: string | null;
   inquiry: string | null;
-  signature_url: string;
+  signature_url: string | null;
   status: string;
   registered_at: string;
   confirmed_at: string | null;
@@ -47,7 +50,7 @@ interface Training {
   show_car_number: boolean;
 }
 
-const TABS = [
+const SUB_TABS = [
   { key: 'confirmed', label: '확정', icon: CheckCircle2 },
   { key: 'waitlisted', label: '대기', icon: Clock },
   { key: 'cancelled', label: '취소', icon: XCircle },
@@ -60,8 +63,10 @@ const AdminTrainingTrainees = () => {
   const [training, setTraining] = useState<Training | null>(null);
   const [trainees, setTrainees] = useState<Trainee[]>([]);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<typeof TABS[number]['key']>('confirmed');
+  const [mainTab, setMainTab] = useState<'applicants' | 'attendees'>('applicants');
+  const [subTab, setSubTab] = useState<typeof SUB_TABS[number]['key']>('confirmed');
   const [search, setSearch] = useState('');
+  const [exporting, setExporting] = useState<'xlsx' | 'pdf' | null>(null);
 
   const fetchAll = useCallback(async () => {
     if (!trainingId) return;
@@ -78,17 +83,38 @@ const AdminTrainingTrainees = () => {
 
   useEffect(() => { if (user) fetchAll(); }, [user, fetchAll]);
 
+  // 신청자 = walk_in 제외 (registered/confirmed/waitlisted/cancelled)
+  const applicantsAll = useMemo(
+    () => trainees.filter((t) => t.status !== 'walk_in'),
+    [trainees]
+  );
+  // 참석자 = 서명 완료 (사전신청+체크인 confirmed + walk_in)
+  const attendedAll = useMemo(
+    () => trainees.filter((t) => !!t.signature_url && (t.status === 'confirmed' || t.status === 'walk_in')),
+    [trainees]
+  );
+
   const counts = useMemo(() => ({
-    confirmed: trainees.filter((t) => t.status === 'confirmed').length,
-    waitlisted: trainees.filter((t) => t.status === 'waitlisted').length,
-    cancelled: trainees.filter((t) => t.status === 'cancelled').length,
-  }), [trainees]);
+    confirmed: applicantsAll.filter((t) => t.status === 'confirmed').length,
+    waitlisted: applicantsAll.filter((t) => t.status === 'waitlisted').length,
+    cancelled: applicantsAll.filter((t) => t.status === 'cancelled').length,
+  }), [applicantsAll]);
+
+  const walkInCount = useMemo(() => trainees.filter((t) => t.status === 'walk_in').length, [trainees]);
+
+  const baseList: Trainee[] = mainTab === 'applicants'
+    ? applicantsAll.filter((t) => t.status === subTab)
+    : attendedAll;
 
   const filtered = useMemo(() => {
     const s = search.trim().toLowerCase();
-    return trainees.filter((t) => t.status === tab)
-      .filter((t) => !s || t.name.toLowerCase().includes(s) || t.organization.toLowerCase().includes(s));
-  }, [trainees, tab, search]);
+    if (!s) return baseList;
+    return baseList.filter((t) =>
+      t.name.toLowerCase().includes(s) ||
+      t.organization.toLowerCase().includes(s) ||
+      (t.email && t.email.toLowerCase().includes(s))
+    );
+  }, [baseList, search]);
 
   const promote = async (id: string) => {
     const { data, error } = await supabase.rpc('promote_trainee_from_waitlist', { p_trainee_id: id });
@@ -116,49 +142,37 @@ const AdminTrainingTrainees = () => {
     else { toast.success('영구 삭제되었습니다.'); fetchAll(); }
   };
 
-  const exportExcel = async () => {
-    if (!training) return;
+  const handleExport = async (fmt: 'xlsx' | 'pdf') => {
+    if (!training || filtered.length === 0) return;
+    setExporting(fmt);
     try {
-      await exportTraineesToExcel(training, filtered as TraineeRow[], { showCarNumber: training.show_car_number });
-      toast.success('엑셀 파일이 다운로드되었습니다.');
-    } catch { toast.error('엑셀 다운로드에 실패했습니다.'); }
-  };
-
-  const exportPDF = async () => {
-    if (!training) return;
-    try {
-      await exportTraineesToPDF(training, filtered as TraineeRow[], { showCarNumber: training.show_car_number });
-      toast.success('PDF 파일이 다운로드되었습니다.');
-    } catch { toast.error('PDF 다운로드에 실패했습니다.'); }
-  };
-
-  const exportCsv = () => {
-    const headers = ['상태', '신청일시', '소속구분', '기관명', '부서', '직급', '성함'];
-    if (training?.show_car_number) headers.push('차량번호');
-    headers.push('문의사항');
-    const statusLabel = (s: string) => s === 'confirmed' ? '확정' : s === 'waitlisted' ? '대기' : '취소';
-    const rows = filtered.map((t) => {
-      const r = [
-        statusLabel(t.status),
-        new Date(t.registered_at).toLocaleString('ko-KR'),
-        t.org_type ?? '',
-        t.organization,
-        t.department ?? '',
-        t.position ?? '',
-        t.name,
-      ];
-      if (training?.show_car_number) r.push(t.car_number ?? '');
-      r.push(t.inquiry ?? '');
-      return r;
-    });
-    const csv = '\uFEFF' + [headers, ...rows].map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${training?.title ?? 'training'}_${tab}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+      // Map Trainee → RosterAttendee
+      const rows: RosterAttendee[] = filtered.map((t) => ({
+        id: t.id,
+        org_type: t.org_type,
+        organization: t.organization,
+        department: t.department,
+        position: t.position,
+        name: t.name,
+        email: t.email,
+        phone: null,
+        car_number: t.car_number,
+        signature_url: t.signature_url,
+        status: t.status,
+        registered_at: t.registered_at,
+        checked_in_at: t.confirmed_at,
+      }));
+      const opts = { showCarNumber: !!training.show_car_number, kind: '교육' as const };
+      if (mainTab === 'applicants') {
+        if (fmt === 'xlsx') await exportApplicantsToExcel(training, rows, opts);
+        else await exportApplicantsToPDF(training, rows, opts);
+      } else {
+        if (fmt === 'xlsx') await exportAttendeesRosterToExcel(training, rows, opts);
+        else await exportAttendeesRosterToPDF(training, rows, opts);
+      }
+      toast.success('파일이 다운로드되었습니다.');
+    } catch { toast.error('다운로드에 실패했습니다.'); }
+    finally { setExporting(null); }
   };
 
   if (loading) {
@@ -173,72 +187,126 @@ const AdminTrainingTrainees = () => {
       </button>
 
       <div className="flex items-center justify-between gap-3 flex-wrap">
-        <h1 className="text-xl font-bold text-foreground">{training?.title} — 신청자</h1>
-        <div className="flex flex-wrap gap-2">
-          <Button size="sm" variant="outline" disabled={filtered.length === 0} onClick={exportExcel}>
-            <FileSpreadsheet className="w-4 h-4 mr-1" />엑셀
-          </Button>
-          <Button size="sm" variant="outline" disabled={filtered.length === 0} onClick={exportPDF}>
-            <FileText className="w-4 h-4 mr-1" />PDF
-          </Button>
-          <Button size="sm" variant="outline" disabled={filtered.length === 0} onClick={exportCsv}>
-            <Download className="w-4 h-4 mr-1" />CSV
-          </Button>
-        </div>
+        <h1 className="text-xl font-bold text-foreground">{training?.title} — 명부</h1>
       </div>
 
+      {/* Main tabs */}
       <div className="flex gap-2" role="tablist">
-        {TABS.map(({ key, label, icon: Icon }) => (
-          <button key={key} role="tab" aria-selected={tab === key} onClick={() => setTab(key)}
-            className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-              tab === key ? 'bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
-            }`}>
-            <Icon className="w-4 h-4" />{label} ({counts[key]})
-          </button>
-        ))}
+        <button role="tab" aria-selected={mainTab === 'applicants'} onClick={() => setMainTab('applicants')}
+          className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+            mainTab === 'applicants' ? 'bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
+          }`}>
+          <ClipboardList className="w-4 h-4" />신청자 명부 ({applicantsAll.length})
+        </button>
+        <button role="tab" aria-selected={mainTab === 'attendees'} onClick={() => setMainTab('attendees')}
+          className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+            mainTab === 'attendees' ? 'bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
+          }`}>
+          <CheckCircle2 className="w-4 h-4" />참석자 명부 ({attendedAll.length})
+        </button>
+        {walkInCount > 0 && (
+          <span className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-warning/10 text-warning text-xs font-medium">
+            <UserPlus className="w-3.5 h-3.5" />현장 등록 {walkInCount}
+          </span>
+        )}
+      </div>
+
+      {/* Sub tabs (only for applicants) */}
+      {mainTab === 'applicants' && (
+        <div className="flex gap-2" role="tablist">
+          {SUB_TABS.map(({ key, label, icon: Icon }) => (
+            <button key={key} role="tab" aria-selected={subTab === key} onClick={() => setSubTab(key)}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                subTab === key ? 'bg-foreground text-background' : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
+              }`}>
+              <Icon className="w-3.5 h-3.5" />{label} ({counts[key]})
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Export */}
+      <div className="flex flex-wrap items-center gap-2">
+        <p className="text-xs text-muted-foreground mr-1">
+          {mainTab === 'applicants' ? '사전 신청자 (서명 미포함)' : '서명 완료 참석자 (사전신청 + 현장등록)'}
+        </p>
+        <div className="flex-1" />
+        <Button size="sm" disabled={!!exporting || filtered.length === 0} onClick={() => handleExport('xlsx')}
+          className="bg-emerald-600 hover:bg-emerald-700 text-white">
+          {exporting === 'xlsx' ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <FileSpreadsheet className="w-4 h-4 mr-1" />}엑셀
+        </Button>
+        <Button size="sm" disabled={!!exporting || filtered.length === 0} onClick={() => handleExport('pdf')}
+          className="bg-red-600 hover:bg-red-700 text-white">
+          {exporting === 'pdf' ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <FileText className="w-4 h-4 mr-1" />}PDF
+        </Button>
       </div>
 
       <div className="relative">
         <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
         <Input value={search} onChange={(e) => setSearch(e.target.value)}
-          placeholder="이름, 소속 검색" className="pl-9" />
+          placeholder="이름, 소속, 이메일 검색" className="pl-9" />
       </div>
 
       <div className="bg-card rounded-xl shadow-card overflow-hidden">
         {filtered.length === 0 ? (
-          <p className="text-center py-12 text-sm text-muted-foreground">해당하는 신청자가 없습니다.</p>
+          <p className="text-center py-12 text-sm text-muted-foreground">
+            {mainTab === 'applicants' ? '해당하는 신청자가 없습니다.' : '아직 참석 확인된 인원이 없습니다.'}
+          </p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-secondary/50 text-xs">
                 <tr>
-                  {tab === 'waitlisted' && <th className="text-left px-3 py-2.5 w-10">#</th>}
-                  <th className="text-left px-3 py-2.5">신청일시</th>
+                  <th className="text-left px-3 py-2.5 w-10">#</th>
+                  {mainTab === 'attendees' && <th className="text-left px-3 py-2.5">경로</th>}
+                  <th className="text-left px-3 py-2.5">{mainTab === 'applicants' ? '신청일시' : '참석시각'}</th>
                   <th className="text-left px-3 py-2.5">소속구분</th>
                   <th className="text-left px-3 py-2.5">기관/부서</th>
                   <th className="text-left px-3 py-2.5">직급</th>
                   <th className="text-left px-3 py-2.5">성함</th>
+                  {mainTab === 'applicants' && <th className="text-left px-3 py-2.5">이메일</th>}
                   {training?.show_car_number && <th className="text-left px-3 py-2.5">차량</th>}
+                  {mainTab === 'attendees' && <th className="text-left px-3 py-2.5">서명</th>}
                   <th className="text-right px-3 py-2.5">관리</th>
                 </tr>
               </thead>
               <tbody>
                 {filtered.map((t, i) => (
                   <tr key={t.id} className="border-t border-border/40">
-                    {tab === 'waitlisted' && <td className="px-3 py-2.5 text-muted-foreground tabular-nums">{i + 1}</td>}
-                    <td className="px-3 py-2.5 text-muted-foreground whitespace-nowrap">{new Date(t.registered_at).toLocaleString('ko-KR')}</td>
+                    <td className="px-3 py-2.5 text-muted-foreground tabular-nums">{i + 1}</td>
+                    {mainTab === 'attendees' && (
+                      <td className="px-3 py-2.5">
+                        {t.status === 'walk_in'
+                          ? <span className="text-[10px] bg-warning/10 text-warning px-1.5 py-0.5 rounded">현장</span>
+                          : <span className="text-[10px] bg-success/10 text-success px-1.5 py-0.5 rounded">사전</span>}
+                      </td>
+                    )}
+                    <td className="px-3 py-2.5 text-muted-foreground whitespace-nowrap text-xs">
+                      {(mainTab === 'applicants' ? t.registered_at : (t.confirmed_at || t.registered_at))
+                        ? new Date((mainTab === 'applicants' ? t.registered_at : (t.confirmed_at || t.registered_at))!).toLocaleString('ko-KR')
+                        : '-'}
+                    </td>
                     <td className="px-3 py-2.5">{t.org_type || '-'}</td>
                     <td className="px-3 py-2.5">{t.organization}{t.department ? ` / ${t.department}` : ''}</td>
                     <td className="px-3 py-2.5">{t.position || '-'}</td>
                     <td className="px-3 py-2.5 font-medium">{t.name}</td>
+                    {mainTab === 'applicants' && <td className="px-3 py-2.5 text-xs text-muted-foreground">{t.email || '-'}</td>}
                     {training?.show_car_number && <td className="px-3 py-2.5">{t.car_number || '-'}</td>}
+                    {mainTab === 'attendees' && (
+                      <td className="px-3 py-2.5">
+                        {t.signature_url
+                          ? <img src={t.signature_url} alt="서명" className="h-7 w-auto border border-border/50 rounded bg-white p-0.5" />
+                          : <span className="text-muted-foreground text-xs">-</span>}
+                      </td>
+                    )}
                     <td className="px-3 py-2.5 text-right whitespace-nowrap">
-                      {tab === 'waitlisted' && (
+                      {mainTab === 'applicants' && subTab === 'waitlisted' && (
                         <Button size="sm" variant="ghost" className="h-7" onClick={() => promote(t.id)}>확정</Button>
                       )}
-                      {tab !== 'cancelled' ? (
+                      {mainTab === 'applicants' && subTab !== 'cancelled' && (
                         <Button size="sm" variant="ghost" className="h-7 text-destructive hover:text-destructive" onClick={() => cancel(t.id)}>취소</Button>
-                      ) : (
+                      )}
+                      {mainTab === 'applicants' && subTab === 'cancelled' && (
                         <Button size="sm" variant="ghost" className="h-7" onClick={() => restore(t.id)}>복구</Button>
                       )}
                       <AlertDialog>
