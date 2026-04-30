@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useCallback } from 'react';
+import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/lib/auth';
 import { supabase } from '@/integrations/supabase/client';
@@ -12,11 +12,16 @@ import {
   ArrowLeft, Users, Calendar, MapPin, Clock, Hash,
   Loader2, Trash2, Copy, Download, Pencil, Maximize2, FileImage,
   BarChart3, ImagePlus, X, FileSpreadsheet, FileText, ScanLine,
+  ClipboardList, CheckCircle2, UserPlus,
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { toast } from 'sonner';
 import { downloadQRPoster, downloadQRImage } from '@/lib/qrExport';
-import { exportToExcel, exportToPDF } from '@/lib/exportAttendees';
+import {
+  exportApplicantsToExcel, exportApplicantsToPDF,
+  exportAttendeesRosterToExcel, exportAttendeesRosterToPDF,
+  type RosterAttendee,
+} from '@/lib/exportAttendees';
 import { getPublicOrigin } from '@/lib/getPublicUrl';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -30,11 +35,14 @@ interface Attendee {
   department: string | null;
   position: string | null;
   name: string;
+  email: string | null;
   phone: string | null;
   car_number: string | null;
   inquiry: string | null;
   
-  signature_url: string;
+  signature_url: string | null;
+  status: string;
+  registered_at: string | null;
   checked_in_at: string | null;
 }
 
@@ -82,6 +90,8 @@ const AdminEventDetail = () => {
   const [saving, setSaving] = useState(false);
   const qrAttendRef = useRef<HTMLDivElement>(null);
   const qrRegisterRef = useRef<HTMLDivElement>(null);
+  const [tab, setTab] = useState<'applicants' | 'attendees'>('applicants');
+  const [exporting, setExporting] = useState<'xlsx' | 'pdf' | null>(null);
 
   const fetchData = useCallback(async () => {
     const [eventRes, attendeesRes] = await Promise.all([
@@ -258,6 +268,49 @@ const AdminEventDetail = () => {
       .slice(0, 8);
   })();
 
+  // 신청자 = 사전신청자 (status: registered/checked_in). walk-in 제외
+  const applicants = useMemo(
+    () => attendees.filter((a) => a.status === 'registered' || a.status === 'checked_in'),
+    [attendees]
+  );
+  // 참석자 = 서명한 사람 (사전신청 후 체크인 + walk-in)
+  const attendedList = useMemo(
+    () => attendees.filter((a) => !!a.signature_url && (a.status === 'checked_in' || a.status === 'walk_in')),
+    [attendees]
+  );
+  const walkInCount = useMemo(
+    () => attendees.filter((a) => a.status === 'walk_in').length,
+    [attendees]
+  );
+  const noShowCount = useMemo(
+    () => attendees.filter((a) => a.status === 'registered').length,
+    [attendees]
+  );
+
+  const tabRows = tab === 'applicants' ? applicants : attendedList;
+
+  const handleTabExport = async (fmt: 'xlsx' | 'pdf') => {
+    if (!event || tabRows.length === 0) return;
+    setExporting(fmt);
+    try {
+      const rows = tabRows as unknown as RosterAttendee[];
+      const opts = { showCarNumber: event.show_car_number, kind: '행사' as const };
+      if (tab === 'applicants') {
+        if (fmt === 'xlsx') await exportApplicantsToExcel(event, rows, opts);
+        else await exportApplicantsToPDF(event, rows, opts);
+        toast.success('신청자 명부가 다운로드되었습니다.');
+      } else {
+        if (fmt === 'xlsx') await exportAttendeesRosterToExcel(event, rows, opts);
+        else await exportAttendeesRosterToPDF(event, rows, opts);
+        toast.success('참석자 명부가 다운로드되었습니다.');
+      }
+    } catch {
+      toast.error('다운로드에 실패했습니다.');
+    } finally {
+      setExporting(null);
+    }
+  };
+
   const timeStats = (() => {
     const map = new Map<string, number>();
     attendees.forEach((a) => {
@@ -388,8 +441,8 @@ const AdminEventDetail = () => {
           {/* Action buttons */}
           <div className="border-t border-border/50 pt-4">
             <div className="flex flex-wrap gap-2">
-              <Button size="sm" onClick={() => navigate(`/admin/events/${eventId}/attendees`)} aria-label="참석자 목록 보기">
-                <Users className="w-4 h-4 mr-1" /> 참석자 ({attendees.length})
+              <Button size="sm" onClick={() => navigate(`/admin/events/${eventId}/attendees`)} aria-label="명부 전체보기">
+                <Users className="w-4 h-4 mr-1" /> 명부 전체보기
               </Button>
               <Button size="sm" variant="outline" onClick={() => setShowStats(true)} aria-label="통계 보기">
                 <BarChart3 className="w-4 h-4 mr-1" /> 통계
@@ -411,62 +464,97 @@ const AdminEventDetail = () => {
         </div>
       </div>
 
-      {/* Real-time count */}
-      <div className="bg-card rounded-xl shadow-sm border border-border/50 p-5 flex items-center gap-4">
-        <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center">
-          <Users className="w-6 h-6 text-primary" />
+      {/* Summary cards: 사전 신청 / 참석 완료 / 현장 등록 / 미참석 */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="bg-card rounded-xl shadow-sm border border-border/50 p-4 flex items-center gap-3">
+          <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center"><ClipboardList className="w-5 h-5 text-primary" /></div>
+          <div>
+            <p className="text-2xl font-bold tabular-nums">{applicants.length}</p>
+            <p className="text-[11px] text-muted-foreground">사전 신청</p>
+          </div>
         </div>
-        <div>
-          <p className="text-3xl font-bold text-foreground tabular-nums">{attendees.length}<span className="text-lg font-normal text-muted-foreground ml-0.5">명</span></p>
-          <p className="text-xs text-muted-foreground">참석 등록 완료</p>
+        <div className="bg-card rounded-xl shadow-sm border border-border/50 p-4 flex items-center gap-3">
+          <div className="w-10 h-10 rounded-lg bg-success/10 flex items-center justify-center"><CheckCircle2 className="w-5 h-5 text-success" /></div>
+          <div>
+            <p className="text-2xl font-bold tabular-nums">{attendedList.length}</p>
+            <p className="text-[11px] text-muted-foreground">참석 완료</p>
+          </div>
+        </div>
+        <div className="bg-card rounded-xl shadow-sm border border-border/50 p-4 flex items-center gap-3">
+          <div className="w-10 h-10 rounded-lg bg-warning/10 flex items-center justify-center"><UserPlus className="w-5 h-5 text-warning" /></div>
+          <div>
+            <p className="text-2xl font-bold tabular-nums">{walkInCount}</p>
+            <p className="text-[11px] text-muted-foreground">현장 등록</p>
+          </div>
+        </div>
+        <div className="bg-card rounded-xl shadow-sm border border-border/50 p-4 flex items-center gap-3">
+          <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center"><X className="w-5 h-5 text-muted-foreground" /></div>
+          <div>
+            <p className="text-2xl font-bold tabular-nums">{noShowCount}</p>
+            <p className="text-[11px] text-muted-foreground">미참석</p>
+          </div>
         </div>
       </div>
 
-      {/* Attendees Table */}
+      {/* Roster preview with tabs */}
       <div className="bg-card rounded-xl shadow-sm border border-border/50 overflow-hidden">
-        <div className="p-5 border-b border-border/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <h2 className="font-bold text-foreground flex items-center gap-2">
-            <Users className="w-5 h-5 text-primary" /> 참석자 명부
-            <span className="tabular-nums text-sm text-muted-foreground font-medium ml-1">총 {attendees.length}명</span>
-          </h2>
+        <div className="p-4 border-b border-border/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex gap-2" role="tablist">
+            <button
+              role="tab"
+              aria-selected={tab === 'applicants'}
+              onClick={() => setTab('applicants')}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                tab === 'applicants' ? 'bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
+              }`}
+            >
+              <ClipboardList className="w-4 h-4" />신청자 명부 ({applicants.length})
+            </button>
+            <button
+              role="tab"
+              aria-selected={tab === 'attendees'}
+              onClick={() => setTab('attendees')}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                tab === 'attendees' ? 'bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
+              }`}
+            >
+              <CheckCircle2 className="w-4 h-4" />참석자 명부 ({attendedList.length})
+            </button>
+          </div>
           <div className="flex flex-wrap gap-2">
             <Button
               size="sm"
-              variant="outline"
-              disabled={attendees.length === 0}
-              onClick={async () => {
-                if (!event) return;
-                try {
-                  await exportToExcel(event, attendees, { showCarNumber: event.show_car_number });
-                  toast.success('엑셀 파일이 다운로드되었습니다.');
-                } catch { toast.error('엑셀 다운로드에 실패했습니다.'); }
-              }}
+              onClick={() => handleTabExport('xlsx')}
+              disabled={!!exporting || tabRows.length === 0}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white"
             >
-              <FileSpreadsheet className="w-4 h-4 mr-1" /> 엑셀
+              {exporting === 'xlsx' ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <FileSpreadsheet className="w-4 h-4 mr-1" />}
+              엑셀
             </Button>
             <Button
               size="sm"
-              variant="outline"
-              disabled={attendees.length === 0}
-              onClick={async () => {
-                if (!event) return;
-                try {
-                  await exportToPDF(event, attendees, { showCarNumber: event.show_car_number });
-                  toast.success('PDF 파일이 다운로드되었습니다.');
-                } catch { toast.error('PDF 다운로드에 실패했습니다.'); }
-              }}
+              onClick={() => handleTabExport('pdf')}
+              disabled={!!exporting || tabRows.length === 0}
+              className="bg-red-600 hover:bg-red-700 text-white"
             >
-              <FileText className="w-4 h-4 mr-1" /> PDF
+              {exporting === 'pdf' ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <FileText className="w-4 h-4 mr-1" />}
+              PDF
             </Button>
           </div>
         </div>
 
-        {attendees.length === 0 ? (
+        <div className="px-4 pt-3 text-xs text-muted-foreground">
+          {tab === 'applicants'
+            ? '사전 신청한 모든 인원입니다 (서명 미포함).'
+            : '서명 완료한 참석자입니다 (사전신청 + 현장등록).'}
+        </div>
+
+        {tabRows.length === 0 ? (
           <div className="p-12 text-center text-muted-foreground text-sm">
-            아직 참석 등록된 인원이 없습니다.
+            {tab === 'applicants' ? '아직 사전 신청한 인원이 없습니다.' : '아직 참석 확인된 인원이 없습니다.'}
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto mt-2">
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-secondary/50 text-muted-foreground">
@@ -474,25 +562,43 @@ const AdminEventDetail = () => {
                   <th className="px-4 py-3 text-left font-medium">소속</th>
                   <th className="px-4 py-3 text-left font-medium">성명</th>
                   <th className="px-4 py-3 text-left font-medium">직급</th>
-                  <th className="px-4 py-3 text-left font-medium">서명</th>
-                  <th className="px-4 py-3 text-left font-medium">등록시간</th>
+                  {tab === 'attendees' && <th className="px-4 py-3 text-left font-medium">서명</th>}
+                  {tab === 'attendees' && <th className="px-4 py-3 text-left font-medium">구분</th>}
+                  <th className="px-4 py-3 text-left font-medium">{tab === 'applicants' ? '신청시각' : '등록시각'}</th>
+                  {tab === 'applicants' && <th className="px-4 py-3 text-left font-medium">참석여부</th>}
                 </tr>
               </thead>
               <tbody>
-                {attendees.map((a, i) => (
+                {tabRows.map((a, i) => (
                   <tr key={a.id} className="border-t border-border/30 hover:bg-secondary/30 transition-colors">
                     <td className="px-4 py-3 tabular-nums text-muted-foreground">{i + 1}</td>
                     <td className="px-4 py-3 text-foreground">{a.organization}</td>
                     <td className="px-4 py-3 font-medium text-foreground">{a.name}</td>
                     <td className="px-4 py-3 text-muted-foreground">{a.position || '-'}</td>
-                    <td className="px-4 py-3">
-                      <img src={a.signature_url} alt={`${a.name} 서명`} className="h-8 w-auto" />
-                    </td>
+                    {tab === 'attendees' && (
+                      <td className="px-4 py-3">
+                        {a.signature_url ? <img src={a.signature_url} alt={`${a.name} 서명`} className="h-8 w-auto" /> : '-'}
+                      </td>
+                    )}
+                    {tab === 'attendees' && (
+                      <td className="px-4 py-3">
+                        {a.status === 'walk_in'
+                          ? <span className="text-[10px] bg-warning/10 text-warning px-1.5 py-0.5 rounded">현장등록</span>
+                          : <span className="text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded">사전신청</span>}
+                      </td>
+                    )}
                     <td className="px-4 py-3 tabular-nums text-muted-foreground text-xs">
-                      {a.checked_in_at
-                        ? new Date(a.checked_in_at).toLocaleString('ko-KR', { hour: '2-digit', minute: '2-digit' })
-                        : '-'}
+                      {tab === 'applicants'
+                        ? (a.registered_at ? new Date(a.registered_at).toLocaleString('ko-KR', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '-')
+                        : (a.checked_in_at ? new Date(a.checked_in_at).toLocaleString('ko-KR', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '-')}
                     </td>
+                    {tab === 'applicants' && (
+                      <td className="px-4 py-3">
+                        {a.status === 'checked_in'
+                          ? <span className="text-[10px] bg-success/10 text-success px-1.5 py-0.5 rounded">참석</span>
+                          : <span className="text-[10px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded">미참석</span>}
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>
