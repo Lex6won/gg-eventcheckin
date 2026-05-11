@@ -160,7 +160,6 @@ const TrainingRegisterPage = () => {
   const validateWalkin = () => {
     const e: Record<string, string> = {};
     if (!form.org_type) e.org_type = '소속 구분을 선택해주세요.';
-    if (form.org_type === '기타' && !form.custom_org_type.trim()) e.custom_org_type = '소속 구분을 입력해주세요.';
     if (!form.organization.trim()) e.organization = '기관명을 입력해주세요.';
     if (!form.department.trim()) e.department = '부서명을 입력해주세요.';
     if (!form.position.trim()) e.position = '직급(위)을 입력해주세요.';
@@ -178,7 +177,7 @@ const TrainingRegisterPage = () => {
     setSubmitting(true);
     try {
       const sig = sigCanvas.current!.toDataURL('image/png');
-      const finalOrgType = form.org_type === '기타' ? form.custom_org_type.trim() : form.org_type;
+      const finalOrgType = form.org_type;
       const { data, error } = await supabase.rpc('walk_in_trainee', {
         p_training_id: training.id,
         p_email: email.trim(),
@@ -406,11 +405,6 @@ const TrainingRegisterPage = () => {
                   ))}
                 </div>
                 {errors.org_type && <p className="text-xs text-destructive">{errors.org_type}</p>}
-                {form.org_type === '기타' && (
-                  <Input value={form.custom_org_type} onChange={(e) => updateField('custom_org_type', e.target.value)}
-                    placeholder="직접 입력" className={`h-12 bg-secondary/50 border-border/60 mt-2 ${errors.custom_org_type ? 'border-destructive' : ''}`} />
-                )}
-                {errors.custom_org_type && <p className="text-xs text-destructive">{errors.custom_org_type}</p>}
               </div>
 
               <div className="space-y-1.5">
