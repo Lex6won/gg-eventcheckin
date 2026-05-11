@@ -27,7 +27,7 @@ interface EventData {
 
 const ORG_TYPES = ['경기도', '시군', '공공기관', '직접입력'] as const;
 
-type Step = 'email' | 'sign' | 'walkin';
+type Step = 'choice' | 'email' | 'sign' | 'walkin';
 
 const AttendancePage = () => {
   const { accessCode } = useParams<{ accessCode: string }>();
@@ -45,7 +45,7 @@ const AttendancePage = () => {
   const [success, setSuccess] = useState<null | { name: string; mode: 'checkin' | 'walkin' }>(null);
   const [alreadyDone, setAlreadyDone] = useState<null | { name: string }>(null);
 
-  const [step, setStep] = useState<Step>('email');
+  const [step, setStep] = useState<Step>('choice');
   const [email, setEmail] = useState('');
   const [matched, setMatched] = useState<{ name: string; organization: string } | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -201,7 +201,7 @@ const AttendancePage = () => {
   };
 
   const reset = () => {
-    setEmail(''); setMatched(null); setStep('email'); setSuccess(null);
+    setEmail(''); setMatched(null); setStep('choice'); setSuccess(null);
     setAlreadyDone(null); setErrors({});
     setForm({ org_type:'', custom_org_type:'', organization:'', department:'',
       position:'', name:'', phone:'', car_number:'', privacy_agreed:false });
@@ -281,6 +281,35 @@ const AttendancePage = () => {
           </div>
         </div>
 
+        {step === 'choice' && (
+          <div className="space-y-4 animate-fade-in">
+            <button type="button" onClick={() => setStep('email')}
+              className="w-full bg-card rounded-xl shadow-card p-5 text-left hover:bg-secondary/30 transition-colors border-2 border-primary/30">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                  <Mail className="w-6 h-6 text-primary" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-base font-semibold text-foreground">사전 신청 했어요</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">이메일로 빠르게 참석 확인</p>
+                </div>
+              </div>
+            </button>
+            <button type="button" onClick={() => setStep('walkin')}
+              className="w-full bg-card rounded-xl shadow-card p-5 text-left hover:bg-secondary/30 transition-colors border border-border">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-xl bg-secondary flex items-center justify-center shrink-0">
+                  <UserPlus className="w-6 h-6 text-foreground" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-base font-semibold text-foreground">사전 신청 안 했어요</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">바로 현장 등록 + 참석 확인</p>
+                </div>
+              </div>
+            </button>
+          </div>
+        )}
+
         {step === 'email' && (
           <form onSubmit={handleEmailLookup} className="space-y-5">
             <div className="bg-card rounded-xl shadow-card p-5 space-y-4 animate-fade-in">
@@ -294,14 +323,13 @@ const AttendancePage = () => {
                   className={`h-12 bg-secondary/50 border-border/60 ${errors.email ? 'border-destructive' : ''}`} />
                 {errors.email && <p className="text-xs text-destructive mt-1">{errors.email}</p>}
               </div>
-              <Button type="submit" disabled={submitting} className="w-full h-14 text-base rounded-xl font-semibold">
-                {submitting ? <><Loader2 className="w-4 h-4 animate-spin mr-2" />확인 중...</> : '확인'}
-              </Button>
+              <div className="flex gap-3">
+                <Button variant="outline" type="button" onClick={() => setStep('choice')} className="h-14 rounded-xl"><ArrowLeft className="w-4 h-4" /></Button>
+                <Button type="submit" disabled={submitting} className="flex-1 h-14 text-base rounded-xl font-semibold">
+                  {submitting ? <><Loader2 className="w-4 h-4 animate-spin mr-2" />확인 중...</> : '확인'}
+                </Button>
+              </div>
             </div>
-            <Link to={`/register/${code}`} className="block bg-card rounded-xl shadow-card p-4 text-center text-sm text-foreground hover:bg-secondary/30 transition-colors">
-              <UserPlus className="inline w-4 h-4 mr-1.5 text-primary" />
-              아직 사전 신청 안하셨나요? <strong>사전 신청하기</strong>
-            </Link>
           </form>
         )}
 
@@ -342,9 +370,9 @@ const AttendancePage = () => {
 
         {step === 'walkin' && (
           <form onSubmit={handleWalkin} className="space-y-5">
-            <div className="bg-warning/10 border border-warning/30 rounded-xl p-4 text-sm text-foreground flex items-start gap-2 animate-fade-in">
-              <AlertCircle className="w-5 h-5 text-warning shrink-0 mt-0.5" />
-              <span>사전 신청 내역이 없습니다. <strong>현장 등록</strong>으로 진행됩니다.</span>
+            <div className="bg-primary/5 border border-primary/30 rounded-xl p-4 text-sm text-foreground flex items-start gap-2 animate-fade-in">
+              <UserPlus className="w-5 h-5 text-primary shrink-0 mt-0.5" />
+              <span>현장에서 정보를 입력하고 <strong>바로 참석 확인</strong>해드립니다.</span>
             </div>
 
             <div className="bg-card rounded-xl shadow-card p-5 space-y-5 animate-fade-in">
