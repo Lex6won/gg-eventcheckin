@@ -260,13 +260,6 @@ const RegisterPage = () => {
               ? <>현재 정원이 마감되어 대기자로 등록되었습니다.<br />자리가 나면 담당자가 안내드립니다.</>
               : <>당일 현장에서 <span className="font-semibold text-foreground">{form.email}</span>로<br />체크인하시면 됩니다.</>}
           </p>
-          {success.lookup_code && !isWait && (
-            <div className="bg-primary/5 border border-primary/30 rounded-xl p-4 space-y-1">
-              <p className="text-xs text-muted-foreground">현장 체크인 보조 코드</p>
-              <p className="text-3xl font-bold text-primary tracking-[0.4em] tabular-nums">{success.lookup_code}</p>
-              <p className="text-xs text-muted-foreground">이메일이 기억나지 않을 때 이 6자리 숫자로도 체크인 가능합니다.</p>
-            </div>
-          )}
           <div className="bg-secondary/40 rounded-xl p-4 text-sm text-left space-y-1.5">
             <p className="font-semibold text-foreground">{data?.title}</p>
             <p className="text-muted-foreground"><Calendar className="inline w-3.5 h-3.5 mr-1" />{data?.event_date} {data?.start_time?.slice(0,5)} ~ {data?.end_time?.slice(0,5)}</p>
