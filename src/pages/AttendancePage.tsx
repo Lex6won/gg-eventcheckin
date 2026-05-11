@@ -384,7 +384,16 @@ const AttendancePage = () => {
                       form.org_type === t ? 'border-primary bg-primary/10 text-primary' : 'border-border bg-secondary/50 text-muted-foreground hover:border-primary/40'
                     }`}>
                       <input type="radio" name="org_type" value={t} checked={form.org_type === t}
-                        onChange={(e) => updateField('org_type', e.target.value)} className="sr-only" />{t}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          setForm((prev) => ({
+                            ...prev,
+                            org_type: v,
+                            organization: v === '경기도' ? '경기도' : (prev.org_type === '경기도' ? '' : prev.organization),
+                          }));
+                          if (errors.org_type) setErrors({ ...errors, org_type: '' });
+                          if (v === '경기도' && errors.organization) setErrors({ ...errors, organization: '' });
+                        }} className="sr-only" />{t}
                     </label>
                   ))}
                 </div>
@@ -399,7 +408,9 @@ const AttendancePage = () => {
               <div className="space-y-1.5">
                 <label className="text-sm font-semibold text-foreground">기관명 <span className="text-destructive">*</span></label>
                 <Input value={form.organization} onChange={(e) => updateField('organization', e.target.value)}
-                  className={`h-12 bg-secondary/50 border-border/60 ${errors.organization ? 'border-destructive' : ''}`} />
+                  disabled={form.org_type === '경기도'}
+                  placeholder={form.org_type === '경기도' ? '경기도 (자동 입력)' : '기관명을 입력해주세요'}
+                  className={`h-12 bg-secondary/50 border-border/60 ${errors.organization ? 'border-destructive' : ''} ${form.org_type === '경기도' ? 'opacity-70' : ''}`} />
                 {errors.organization && <p className="text-xs text-destructive">{errors.organization}</p>}
               </div>
 
