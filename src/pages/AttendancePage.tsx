@@ -90,11 +90,10 @@ const AttendancePage = () => {
     ev.preventDefault();
     if (!event) return;
     const q = email.trim();
-    if (!q) { setErrors({ email: '이메일 또는 6자리 코드를 입력해주세요.' }); return; }
-    const isCode = /^[0-9]{6}$/.test(q);
+    if (!q) { setErrors({ email: '이메일을 입력해주세요.' }); return; }
     const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(q);
-    if (!isCode && !isEmail) {
-      setErrors({ email: '이메일 형식 또는 6자리 숫자 코드를 입력해주세요.' }); return;
+    if (!isEmail) {
+      setErrors({ email: '올바른 이메일 형식이 아닙니다.' }); return;
     }
     setErrors({});
     setSubmitting(true);
@@ -106,7 +105,7 @@ const AttendancePage = () => {
       const r = lookup as any;
       if (r.status === 'not_found') { setStep('walkin'); return; }
       if (r.status === 'multiple') {
-        setErrors({ email: '같은 조건의 신청자가 여러 명입니다. 이메일 또는 6자리 코드로 정확히 입력해주세요.' });
+        setErrors({ email: '같은 이메일로 신청한 내역이 여러 건입니다. 담당자에게 문의해주세요.' });
         return;
       }
       const data = r.attendee as { name: string; organization: string; status: string };
@@ -287,11 +286,11 @@ const AttendancePage = () => {
             <div className="bg-card rounded-xl shadow-card p-5 space-y-4 animate-fade-in">
               <div>
                 <label className="text-sm font-semibold text-foreground flex items-center gap-1.5 mb-2">
-                  <Mail className="w-4 h-4 text-primary" />이메일 또는 6자리 코드로 확인
+                  <Mail className="w-4 h-4 text-primary" />사전 신청 이메일로 확인
                 </label>
                 <Input type="text" inputMode="email" autoComplete="email" autoFocus
                   value={email} onChange={(e) => setEmail(e.target.value)}
-                  placeholder="사전 신청 이메일 또는 보조 코드(예: 123456)"
+                  placeholder="사전 신청 시 입력한 이메일"
                   className={`h-12 bg-secondary/50 border-border/60 ${errors.email ? 'border-destructive' : ''}`} />
                 {errors.email && <p className="text-xs text-destructive mt-1">{errors.email}</p>}
               </div>
