@@ -47,7 +47,7 @@ const RegisterPage = () => {
   const [preRegClosed, setPreRegClosed] = useState(false);
   const [inProgress, setInProgress] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [success, setSuccess] = useState<null | { status: string; position?: number; lookup_code?: string }>(null);
+  const [success, setSuccess] = useState<null | { status: string; position?: number }>(null);
   const [duplicate, setDuplicate] = useState(false);
   const [closed, setClosed] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -142,9 +142,9 @@ const RegisterPage = () => {
           p_privacy_agreed: form.privacy_agreed,
         });
         if (error) throw error;
-        const r = res as { status: string; lookup_code?: string };
+        const r = res as { status: string };
         if (r.status === 'duplicate') { setDuplicate(true); return; }
-        setSuccess({ status: r.status, lookup_code: r.lookup_code });
+        setSuccess({ status: r.status });
       } else {
         const { data: res, error } = await supabase.rpc('register_trainee', {
           p_training_id: data.id,
@@ -160,10 +160,10 @@ const RegisterPage = () => {
           p_email: form.email.trim(),
         });
         if (error) throw error;
-        const r = res as { status: string; position?: number; lookup_code?: string };
+        const r = res as { status: string; position?: number };
         if (r.status === 'duplicate') { setDuplicate(true); return; }
         if (r.status === 'full') { setClosed(true); return; }
-        setSuccess({ status: r.status, position: r.position, lookup_code: r.lookup_code });
+        setSuccess({ status: r.status, position: r.position });
       }
     } catch (err) {
       console.error(err);

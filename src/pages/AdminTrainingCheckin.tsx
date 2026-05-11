@@ -73,7 +73,7 @@ const AdminTrainingCheckin = () => {
       });
       const r = lookup as any;
       if (r?.status === 'not_found') { toast.warning('사전 신청 내역이 없습니다.'); return; }
-      if (r?.status === 'multiple') { toast.warning('동일 조건의 신청자가 여러 명입니다. 6자리 코드로 입력해주세요.'); return; }
+      if (r?.status === 'multiple') { toast.warning('같은 이메일로 신청한 내역이 여러 건입니다. 담당자에게 문의해주세요.'); return; }
       const data = r.trainee as { name: string; organization: string; status: string };
       if (data.status === 'confirmed' || data.status === 'walk_in') {
         toast.info(`${data.name}님은 이미 체크인 완료되었습니다.`);
@@ -140,11 +140,11 @@ const AdminTrainingCheckin = () => {
           <form onSubmit={handleLookup} className="space-y-4">
             <div className="bg-card rounded-xl shadow-card p-5 space-y-4">
               <label className="text-base font-semibold text-foreground flex items-center gap-1.5">
-                <Mail className="w-5 h-5 text-primary" />이메일 또는 6자리 코드
+                <Mail className="w-5 h-5 text-primary" />사전 신청 이메일
               </label>
-              <Input ref={emailRef} type="text" inputMode="email" autoFocus
+              <Input ref={emailRef} type="email" inputMode="email" autoFocus
                 value={email} onChange={(e) => setEmail(e.target.value)}
-                placeholder="이메일 또는 보조 코드"
+                placeholder="사전 신청 시 입력한 이메일"
                 className="h-16 text-lg bg-secondary/50 border-border/60" />
               <Button type="submit" disabled={submitting || !email.trim()} className="w-full h-14 text-base font-semibold rounded-xl">
                 {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : '확인'}

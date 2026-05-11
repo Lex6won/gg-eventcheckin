@@ -114,7 +114,7 @@ const AdminEventQR = () => {
             <strong className="text-foreground">권장 운영 흐름</strong> · 1단계로 먼저 신청 받고, 행사 당일 2단계로 참석 확정
           </p>
           <p className="text-xs text-muted-foreground">
-            사전 신청자는 이메일 또는 6자리 신청코드로 본인 확인 후 서명만 하면 됩니다.<br/>
+            사전 신청자는 사전 신청 시 입력한 이메일로 본인 확인 후 서명만 하면 됩니다.<br/>
             사전 신청 없이 온 분은 현장에서 정보 입력 + 서명으로 등록됩니다.
           </p>
         </div>
