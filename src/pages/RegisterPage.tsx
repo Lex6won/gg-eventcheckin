@@ -31,7 +31,7 @@ interface CommonData {
   allow_waitlist?: boolean;
 }
 
-const ORG_TYPES = ['경기도', '시군', '공공기관', '민간기업 등 기타'] as const;
+const ORG_TYPES = ['경기도', '시군', '공공기관', '기타'] as const;
 
 const RegisterPage = () => {
   const { accessCode } = useParams<{ accessCode: string }>();
@@ -111,7 +111,6 @@ const RegisterPage = () => {
     if (!form.email.trim()) e.email = '이메일을 입력해주세요.';
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) e.email = '올바른 이메일 형식이 아닙니다.';
     if (!form.org_type) e.org_type = '소속 구분을 선택해주세요.';
-    if (form.org_type === '민간기업 등 기타' && !form.custom_org_type.trim()) e.custom_org_type = '소속 구분을 입력해주세요.';
     if (!form.organization.trim()) e.organization = '기관명을 입력해주세요.';
     if (!form.department.trim()) e.department = '부서명을 입력해주세요.';
     if (!form.position.trim()) e.position = '직급(위)을 입력해주세요.';
@@ -127,7 +126,7 @@ const RegisterPage = () => {
     if (!validate()) { toast.error('필수 항목을 확인해주세요.'); return; }
     setSubmitting(true);
     try {
-      const finalOrgType = form.org_type === '민간기업 등 기타' ? form.custom_org_type.trim() : form.org_type;
+      const finalOrgType = form.org_type;
       if (kind === 'event') {
         const { data: res, error } = await supabase.rpc('register_attendee_pre', {
           p_event_id: data.id,
@@ -364,12 +363,6 @@ const RegisterPage = () => {
                 ))}
               </div>
               {errors.org_type && <p className="text-xs text-destructive">{errors.org_type}</p>}
-              {form.org_type === '민간기업 등 기타' && (
-                <Input value={form.custom_org_type} onChange={(e) => updateField('custom_org_type', e.target.value)}
-                  placeholder="소속 구분을 직접 입력해주세요"
-                  className={`h-12 bg-secondary/50 border-border/60 mt-2 ${errors.custom_org_type ? 'border-destructive' : ''}`} />
-              )}
-              {errors.custom_org_type && <p className="text-xs text-destructive">{errors.custom_org_type}</p>}
             </div>
 
             <div className="space-y-1.5">
