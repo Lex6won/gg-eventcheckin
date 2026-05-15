@@ -1,81 +1,63 @@
-# 신청자/참석자 명부 탭을 상세 페이지에서도 바로 보이게
+# 서명 사라짐 오류 원인 분석
 
-## 현재 상황 (스크린샷 분석)
+## 핵심 원인
 
-스크린샷의 페이지는 행사 **상세 페이지** (`/admin/events/:id`)입니다. 여기에는:
-- 위쪽: QR 2개 (사전 신청 / 참석 확인) — 정상
-- 액션 버튼: `참석자 (0)` 버튼을 누르면 `/admin/events/:id/attendees` 로 이동
-- 아래쪽: 옛날 방식 그대로인 인라인 "참석자 명부" 섹션 (탭 없음, 엑셀/PDF 버튼 1세트)
+`AttendancePage.tsx`와 `TrainingRegisterPage.tsx`의 `resizeCanvas` 함수 안에 다음 코드가 있습니다.
 
-탭(신청자 명부 / 참석자 명부)은 **별도 페이지**(`/admin/events/:id/attendees`, `/admin/trainings/:id/trainees`)에 이미 구현되어 있지만, 사용자가 그 페이지로 이동하지 않으면 보이지 않습니다. 게다가 상세 페이지 하단의 옛날 "참석자 명부" 섹션은 탭 분리 정책과 충돌합니다 (전체 attendees를 한 덩어리로 보여주고 단일 export).
+```ts
+const resizeCanvas = useCallback(() => {
+  if (sigCanvas.current && sigContainerRef.current) {
+    ...
+    canvas.width = container.offsetWidth * ratio;
+    canvas.height = 200 * ratio;
+    ...
+    sigCanvas.current.clear();   // ← 매 resize마다 서명을 지움
+  }
+}, []);
 
-## 목표
-
-상세 페이지에서 바로 신청자/참석자 두 명부를 탭으로 확인하고, 각각 따로 엑셀/PDF로 내려받을 수 있게 합니다.
-
-## 변경 사항
-
-### 1) `src/pages/AdminEventDetail.tsx`
-
-기존 인라인 "참석자 명부" 섹션 (대략 425–500행)을 두 탭 프리뷰 카드로 교체합니다.
-
-```text
-┌─────────────────────────────────────────────────────────┐
-│ [신청자 명부 (N)]  [참석자 명부 (M)]          [엑셀][PDF] │
-├─────────────────────────────────────────────────────────┤
-│ • 신청자 명부 탭: status in ('registered','checked_in') │
-│   - 컬럼: 소속/이름/연락처/(차량)/사전신청 시각/참석여부 │
-│   - 서명 컬럼 없음                                      │
-│ • 참석자 명부 탭: signature_url 있는 사람               │
-│   - 컬럼: 소속/이름/연락처/(차량)/체크인 시각/구분      │
-│     (구분 = 사전신청/현장등록)                          │
-│   - 서명 썸네일 포함                                    │
-└─────────────────────────────────────────────────────────┘
+useEffect(() => {
+  ...
+  window.addEventListener('resize', resizeCanvas);
+}, [step, event, resizeCanvas]);
 ```
 
-엑셀/PDF 버튼은 **현재 활성 탭**을 기준으로 다운로드합니다 (이미 `/attendees` 페이지가 사용하는 `exportToExcel`/`exportToPDF`의 `mode: 'applicants' | 'attendees'` 분기 그대로 재사용).
+즉 `window` 의 `resize` 이벤트가 발생할 때마다 캔버스 크기를 다시 잡고 **무조건 `clear()` 를 호출**합니다.
 
-상단 "참석 등록 완료 N명" 단일 카드는 4-카드 요약(사전 신청 / 참석 완료 / 현장 등록 / 미참석)으로 교체해 한 화면에서 흐름이 보이도록 합니다 — `/attendees` 페이지에서 쓰는 계산식(applicants / attendedList / walkInCount / noShowCount)을 그대로 가져옵니다.
+## 왜 "특정 스마트폰"에서만 발생하는가
 
-`참석자 (N)` 액션 버튼은 **유지**합니다(전체 명부 페이지로 가는 진입점). 라벨만 `명부 전체보기`로 바꿔 의미를 명확히 합니다.
+모바일 브라우저(특히 iOS Safari, 삼성 인터넷, 일부 안드로이드 Chrome)는 **사용자가 스크롤 할 때 주소창/하단 툴바가 자동으로 숨겨지거나 나타납니다**. 이때 viewport 높이가 바뀌면서 `window`의 `resize` 이벤트가 발생합니다.
 
-### 2) `src/pages/AdminTrainingDetail.tsx`
+- 데스크톱: 스크롤해도 resize 이벤트 안 남 → 정상
+- 일부 안드로이드/구형 모델: 주소창이 고정되어 있어 resize 이벤트 안 남 → 정상
+- iOS Safari, 삼성 인터넷, 최신 Chrome on Android: 스크롤 시 resize 발생 → **서명 즉시 삭제**
 
-행사와 동일한 패턴을 교육에도 적용합니다 (462행 부근의 인라인 "참석자 명부" 섹션 교체, 4-카드 요약, 탭별 내보내기). 라벨은 교육 컨벤션에 맞춰 `신청자 명부` / `수강자 명부`로 표기합니다.
+또한 키보드가 닫힐 때, 화면 회전, 핀치 줌 시에도 동일하게 발생합니다. 사용자가 "확인" 버튼을 누르려고 화면을 살짝 움직이는 순간 주소창이 다시 내려오며 resize → clear 가 트리거됩니다.
 
-### 3) 데이터 / 타입
+## 부가 요인
 
-- 추가 쿼리 없음. 이미 두 페이지 모두 `attendees` (또는 `trainees`) 전체를 읽고 있으므로, 같은 배열에서 `useMemo`로 신청자/참석자 두 슬라이스를 만듭니다.
-- `Attendee` 인터페이스에 `status` 필드가 누락되어 있다면 보강 (`'registered' | 'checked_in' | 'walk_in'`).
+1. `canvas.width/height` 를 다시 할당하는 것 자체가 캔버스를 비우는 동작입니다 (HTML5 canvas 표준). 따라서 `clear()` 를 빼더라도 width/height 재설정만으로 그림은 사라집니다.
+2. `useEffect` 의존성에 `resizeCanvas` 가 들어가 있고 `step/event` 가 바뀔 때마다 핸들러를 재등록하지만, 이는 본 버그와는 무관합니다.
+3. step 진입 시 `setTimeout(resizeCanvas, 100)` 으로 초기 1회 리사이즈하는 부분은 유지해도 문제 없습니다 (서명 그리기 전이므로).
 
-### 4) 손대지 않는 것
+## 수정 방향
 
-- 별도의 `/attendees`, `/trainees` 페이지: 그대로 유지 (검색·반응형 카드 뷰 등 풀 기능). 상세 페이지 카드는 "프리뷰 + 내려받기" 역할.
-- QR 2개 섹션, 통계 다이얼로그, 키오스크 진입 버튼, 수정/삭제 — 변경 없음.
-- 사전 신청 / 참석 확인 분리 로직, 서명 정책 (사전신청 서명 없음, 참석확인 서명 필수) — 변경 없음.
+핵심 원칙: **사용자가 그리기 시작한 이후에는 캔버스 크기를 다시 잡지 않는다.**
 
-## 기술 세부 (개발자용)
+1. `resizeCanvas` 안에서 무조건 `clear()` 하지 않고, 다음과 같이 보호:
+   - 이미 서명이 그려진 상태(`!sigCanvas.current.isEmpty()`)면 resize를 건너뛴다.
+   - 또는 캔버스의 컨테이너 width 가 실제로 바뀌었을 때만 다시 잡는다 (높이 변화는 무시).
+2. `window.addEventListener('resize', ...)` 를 그대로 두는 대신, `ResizeObserver` 로 컨테이너 width 변화만 감지하도록 변경. 모바일 주소창 표시/숨김은 width 를 바꾸지 않으므로 자연스럽게 무시됩니다.
+3. 그래도 width 가 바뀌어 다시 그려야 한다면, 기존 서명을 `toDataURL` 로 저장 → resize 후 `fromDataURL` 로 복원해 사용자 입력을 보존.
 
-- 탭 상태는 로컬 `useState<'applicants' | 'attendees'>('applicants')`.
-- `applicants = attendees.filter(a => a.status === 'registered' || a.status === 'checked_in')`
-- `attendedList = attendees.filter(a => !!a.signature_url)`
-- `walkInCount = attendees.filter(a => a.status === 'walk_in').length`
-- `noShowCount = attendees.filter(a => a.status === 'registered' && !a.signature_url).length`
-- 엑셀/PDF 호출:
-  - 신청자 탭: `exportToExcel(event, applicants, { mode: 'applicants', showCarNumber })`
-  - 참석자 탭: `exportToExcel(event, attendedList, { mode: 'attendees', showCarNumber })`
-  - `src/lib/exportAttendees.ts`는 이전 단계에서 이미 mode를 받도록 수정됨 — 시그니처만 재확인.
-- 토스트 메시지에 탭 이름 포함 (예: `"신청자 명부 엑셀이 다운로드되었습니다."`).
-- 빈 상태 카피를 탭별로 분기:
-  - 신청자 탭: "아직 사전 신청한 인원이 없습니다."
-  - 참석자 탭: "아직 참석 확인된 인원이 없습니다."
+## 적용 파일
 
-## 결과
+- `src/pages/AttendancePage.tsx`
+- `src/pages/TrainingRegisterPage.tsx`
 
-상세 페이지 한 화면에서:
-1. 사전 신청 QR / 참석 확인 QR 두 단계가 나란히 보이고
-2. 바로 아래 4-카드 요약으로 진행 현황을 파악하고
-3. 그 아래 탭으로 신청자 명부 ↔ 참석자 명부를 즉시 비교하며
-4. 각 탭에서 따로 엑셀/PDF를 내려받을 수 있습니다.
+(`RegisterPage.tsx` 는 SignatureCanvas 를 직접 사용하지 않고 `p_signature_url: ''` 로 빈 값만 보내므로 수정 대상 아님.)
 
-별도 명부 페이지로 이동하지 않아도 사용자가 요구한 분리가 한 눈에 보입니다.
+## 기대 효과
+
+- iOS Safari, 삼성 인터넷에서 스크롤/주소창 토글로 서명이 사라지는 현상 제거
+- 화면 회전/키보드 토글 시에도 그린 서명 보존
+- 데스크톱·태블릿 동작에는 영향 없음
