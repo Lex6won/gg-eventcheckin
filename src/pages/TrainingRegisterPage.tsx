@@ -39,6 +39,7 @@ const TrainingRegisterPage = () => {
 
   const sigCanvas = useRef<SignatureCanvas>(null);
   const sigContainerRef = useRef<HTMLDivElement>(null);
+  const lastCanvasWidthRef = useRef<number>(0);
 
   const [training, setTraining] = useState<TrainingData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -58,18 +59,28 @@ const TrainingRegisterPage = () => {
     position: '', name: '', car_number: '', privacy_agreed: false,
   });
 
-  const resizeCanvas = useCallback(() => {
-    if (sigCanvas.current && sigContainerRef.current) {
-      const container = sigContainerRef.current;
-      const canvas = sigCanvas.current.getCanvas();
-      const ratio = window.devicePixelRatio || 1;
-      canvas.width = container.offsetWidth * ratio;
-      canvas.height = 200 * ratio;
-      canvas.style.width = `${container.offsetWidth}px`;
-      canvas.style.height = '200px';
-      canvas.getContext('2d')?.scale(ratio, ratio);
-      sigCanvas.current.clear();
+  const resizeCanvas = useCallback((force = false) => {
+    if (!sigCanvas.current || !sigContainerRef.current) return;
+    const container = sigContainerRef.current;
+    const newWidth = container.offsetWidth;
+    if (newWidth <= 0) return;
+    // Skip if width hasn't changed (mobile address-bar show/hide fires
+    // window resize but width stays the same → otherwise wipes signature).
+    if (!force && newWidth === lastCanvasWidthRef.current) return;
+    const canvas = sigCanvas.current.getCanvas();
+    const ratio = window.devicePixelRatio || 1;
+    const hadDrawing = !sigCanvas.current.isEmpty();
+    const prevDataUrl = hadDrawing ? sigCanvas.current.toDataURL('image/png') : null;
+    canvas.width = newWidth * ratio;
+    canvas.height = 200 * ratio;
+    canvas.style.width = `${newWidth}px`;
+    canvas.style.height = '200px';
+    canvas.getContext('2d')?.scale(ratio, ratio);
+    sigCanvas.current.clear();
+    if (prevDataUrl) {
+      sigCanvas.current.fromDataURL(prevDataUrl, { width: newWidth, height: 200 });
     }
+    lastCanvasWidthRef.current = newWidth;
   }, []);
 
   useEffect(() => {
@@ -85,9 +96,21 @@ const TrainingRegisterPage = () => {
   }, [code]);
 
   useEffect(() => {
-    if ((step === 'sign' || step === 'walkin') && training) setTimeout(resizeCanvas, 100);
-    window.addEventListener('resize', resizeCanvas);
-    return () => window.removeEventListener('resize', resizeCanvas);
+    if ((step !== 'sign' && step !== 'walkin') || !training) return;
+    lastCanvasWidthRef.current = 0;
+    const t = setTimeout(() => resizeCanvas(true), 100);
+    const onResize = () => resizeCanvas(false);
+    window.addEventListener('resize', onResize);
+    let ro: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== 'undefined' && sigContainerRef.current) {
+      ro = new ResizeObserver(() => resizeCanvas(false));
+      ro.observe(sigContainerRef.current);
+    }
+    return () => {
+      clearTimeout(t);
+      window.removeEventListener('resize', onResize);
+      ro?.disconnect();
+    };
   }, [step, training, resizeCanvas]);
 
   const handleEmailLookup = async (ev: React.FormEvent) => {
