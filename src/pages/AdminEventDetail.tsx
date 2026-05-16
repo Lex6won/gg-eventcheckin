@@ -11,7 +11,7 @@ import {
 import {
   ArrowLeft, Users, Calendar, MapPin, Clock, Hash,
   Loader2, Trash2, Copy, Download, Pencil, Maximize2, FileImage,
-  BarChart3, ImagePlus, X, FileSpreadsheet, FileText, ScanLine,
+  BarChart3, ImagePlus, X, FileSpreadsheet, FileText,
   ClipboardList, CheckCircle2, UserPlus,
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
