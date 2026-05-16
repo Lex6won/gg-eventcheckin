@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/lib/auth';
+import AdminPendingApproval from '@/pages/AdminPendingApproval';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Calendar, Users, Settings, LogOut, Loader2, GraduationCap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -13,7 +14,7 @@ const navItems = [
 ];
 
 const AdminLayout = () => {
-  const { user, loading, signOut, isSuperAdmin, department } = useAuth();
+  const { user, loading, signOut, isSuperAdmin, department, hasAdminAccess } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const isMobile = useIsMobile();
@@ -44,6 +45,10 @@ const AdminLayout = () => {
   }
 
   if (!user) return null;
+
+  if (!hasAdminAccess) {
+    return <AdminPendingApproval />;
+  }
 
   const isActive = (path: string) => location.pathname.startsWith(path);
 
