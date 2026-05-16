@@ -141,8 +141,11 @@ const RegisterPage = () => {
           p_privacy_agreed: form.privacy_agreed,
         });
         if (error) throw error;
-        const r = res as { status: string };
+        const r = res as { status: string; device_token?: string };
         if (r.status === 'duplicate') { setDuplicate(true); return; }
+        if (r.device_token) {
+          try { localStorage.setItem(`device_token:event:${data.id}`, r.device_token); } catch {}
+        }
         setSuccess({ status: r.status });
       } else {
         const { data: res, error } = await supabase.rpc('register_trainee', {
@@ -154,14 +157,16 @@ const RegisterPage = () => {
           p_name: form.name.trim(),
           p_car_number: form.car_number.trim(),
           p_inquiry: '',
-          p_signature_url: '',
           p_privacy_agreed: form.privacy_agreed,
           p_email: form.email.trim(),
         });
         if (error) throw error;
-        const r = res as { status: string; position?: number };
+        const r = res as { status: string; position?: number; device_token?: string };
         if (r.status === 'duplicate') { setDuplicate(true); return; }
         if (r.status === 'full') { setClosed(true); return; }
+        if (r.device_token) {
+          try { localStorage.setItem(`device_token:training:${data.id}`, r.device_token); } catch {}
+        }
         setSuccess({ status: r.status, position: r.position });
       }
     } catch (err) {
@@ -257,7 +262,7 @@ const RegisterPage = () => {
           <p className="text-muted-foreground text-sm leading-relaxed">
             {isWait
               ? <>현재 정원이 마감되어 대기자로 등록되었습니다.<br />자리가 나면 담당자가 안내드립니다.</>
-              : <>당일 현장에서 <span className="font-semibold text-foreground">{form.email}</span>로<br />체크인하시면 됩니다.</>}
+              : <>당일 현장에서 <span className="font-semibold text-foreground">이 스마트폰으로</span> QR을 찍으시면<br />바로 서명 화면이 나타납니다.</>}
           </p>
           <div className="bg-secondary/40 rounded-xl p-4 text-sm text-left space-y-1.5">
             <p className="font-semibold text-foreground">{data?.title}</p>

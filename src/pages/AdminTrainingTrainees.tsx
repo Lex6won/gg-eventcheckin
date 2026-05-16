@@ -34,6 +34,7 @@ interface Trainee {
   status: string;
   registered_at: string;
   confirmed_at: string | null;
+  rechecked_at: string | null;
 }
 
 interface Training {
@@ -48,6 +49,7 @@ interface Training {
   capacity_enabled: boolean;
   capacity: number | null;
   show_car_number: boolean;
+  recheck_enabled: boolean;
 }
 
 const SUB_TABS = [
@@ -71,7 +73,7 @@ const AdminTrainingTrainees = () => {
   const fetchAll = useCallback(async () => {
     if (!trainingId) return;
     const { data: t } = await supabase.from('trainings')
-      .select('id, title, event_date, start_time, end_time, location, organizer, instructor, capacity_enabled, capacity, show_car_number')
+      .select('id, title, event_date, start_time, end_time, location, organizer, instructor, capacity_enabled, capacity, show_car_number, recheck_enabled')
       .eq('id', trainingId).single();
     setTraining(t as Training);
     const { data, error } = await supabase.from('trainees')
@@ -267,6 +269,7 @@ const AdminTrainingTrainees = () => {
                   {mainTab === 'applicants' && <th className="text-left px-3 py-2.5">이메일</th>}
                   {training?.show_car_number && <th className="text-left px-3 py-2.5">차량</th>}
                   {mainTab === 'attendees' && <th className="text-left px-3 py-2.5">서명</th>}
+                  {mainTab === 'attendees' && training?.recheck_enabled && <th className="text-left px-3 py-2.5">재확인</th>}
                   <th className="text-right px-3 py-2.5">관리</th>
                 </tr>
               </thead>
@@ -297,6 +300,13 @@ const AdminTrainingTrainees = () => {
                         {t.signature_url
                           ? <img src={t.signature_url} alt="서명" className="h-7 w-auto border border-border/50 rounded bg-white p-0.5" />
                           : <span className="text-muted-foreground text-xs">-</span>}
+                      </td>
+                    )}
+                    {mainTab === 'attendees' && training?.recheck_enabled && (
+                      <td className="px-3 py-2.5 text-xs text-muted-foreground whitespace-nowrap">
+                        {t.rechecked_at
+                          ? new Date(t.rechecked_at).toLocaleString('ko-KR')
+                          : <span className="text-muted-foreground/60">미재확인</span>}
                       </td>
                     )}
                     <td className="px-3 py-2.5 text-right whitespace-nowrap">
