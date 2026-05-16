@@ -20,6 +20,7 @@ export type Database = {
           checked_in_at: string | null
           created_at: string | null
           department: string | null
+          device_token: string | null
           email: string | null
           event_id: string
           id: string
@@ -31,6 +32,7 @@ export type Database = {
           phone: string | null
           position: string | null
           privacy_agreed: boolean
+          rechecked_at: string | null
           registered_at: string
           signature_url: string | null
           status: string
@@ -40,6 +42,7 @@ export type Database = {
           checked_in_at?: string | null
           created_at?: string | null
           department?: string | null
+          device_token?: string | null
           email?: string | null
           event_id: string
           id?: string
@@ -51,6 +54,7 @@ export type Database = {
           phone?: string | null
           position?: string | null
           privacy_agreed?: boolean
+          rechecked_at?: string | null
           registered_at?: string
           signature_url?: string | null
           status?: string
@@ -60,6 +64,7 @@ export type Database = {
           checked_in_at?: string | null
           created_at?: string | null
           department?: string | null
+          device_token?: string | null
           email?: string | null
           event_id?: string
           id?: string
@@ -71,6 +76,7 @@ export type Database = {
           phone?: string | null
           position?: string | null
           privacy_agreed?: boolean
+          rechecked_at?: string | null
           registered_at?: string
           signature_url?: string | null
           status?: string
@@ -99,6 +105,7 @@ export type Database = {
           poster_url: string | null
           pre_registration_close_at: string | null
           qr_code_url: string | null
+          recheck_enabled: boolean
           show_car_number: boolean
           start_time: string
           status: string | null
@@ -118,6 +125,7 @@ export type Database = {
           poster_url?: string | null
           pre_registration_close_at?: string | null
           qr_code_url?: string | null
+          recheck_enabled?: boolean
           show_car_number?: boolean
           start_time: string
           status?: string | null
@@ -137,6 +145,7 @@ export type Database = {
           poster_url?: string | null
           pre_registration_close_at?: string | null
           qr_code_url?: string | null
+          recheck_enabled?: boolean
           show_car_number?: boolean
           start_time?: string
           status?: string | null
@@ -205,6 +214,7 @@ export type Database = {
           confirmed_at: string | null
           created_at: string | null
           department: string | null
+          device_token: string | null
           email: string | null
           id: string
           inquiry: string | null
@@ -214,8 +224,9 @@ export type Database = {
           organization: string
           position: string | null
           privacy_agreed: boolean
+          rechecked_at: string | null
           registered_at: string
-          signature_url: string
+          signature_url: string | null
           status: string
           training_id: string
         }
@@ -224,6 +235,7 @@ export type Database = {
           confirmed_at?: string | null
           created_at?: string | null
           department?: string | null
+          device_token?: string | null
           email?: string | null
           id?: string
           inquiry?: string | null
@@ -233,8 +245,9 @@ export type Database = {
           organization: string
           position?: string | null
           privacy_agreed?: boolean
+          rechecked_at?: string | null
           registered_at?: string
-          signature_url: string
+          signature_url?: string | null
           status?: string
           training_id: string
         }
@@ -243,6 +256,7 @@ export type Database = {
           confirmed_at?: string | null
           created_at?: string | null
           department?: string | null
+          device_token?: string | null
           email?: string | null
           id?: string
           inquiry?: string | null
@@ -252,8 +266,9 @@ export type Database = {
           organization?: string
           position?: string | null
           privacy_agreed?: boolean
+          rechecked_at?: string | null
           registered_at?: string
-          signature_url?: string
+          signature_url?: string | null
           status?: string
           training_id?: string
         }
@@ -284,6 +299,7 @@ export type Database = {
           organizer: string
           poster_url: string | null
           pre_registration_close_at: string | null
+          recheck_enabled: boolean
           show_car_number: boolean
           start_time: string
           status: string | null
@@ -306,6 +322,7 @@ export type Database = {
           organizer: string
           poster_url?: string | null
           pre_registration_close_at?: string | null
+          recheck_enabled?: boolean
           show_car_number?: boolean
           start_time: string
           status?: string | null
@@ -328,6 +345,7 @@ export type Database = {
           organizer?: string
           poster_url?: string | null
           pre_registration_close_at?: string | null
+          recheck_enabled?: boolean
           show_car_number?: boolean
           start_time?: string
           status?: string | null
@@ -367,6 +385,10 @@ export type Database = {
         Args: { p_event_id: string }
         Returns: undefined
       }
+      _assert_event_open_for_recheck: {
+        Args: { p_event_id: string }
+        Returns: undefined
+      }
       _assert_training_open_for_onsite: {
         Args: { p_training_id: string }
         Returns: undefined
@@ -375,17 +397,34 @@ export type Database = {
         Args: { p_training_id: string }
         Returns: undefined
       }
+      _assert_training_open_for_recheck: {
+        Args: { p_training_id: string }
+        Returns: undefined
+      }
+      _gen_device_token: { Args: never; Returns: string }
       auto_transition_event_statuses: { Args: never; Returns: undefined }
-      checkin_attendee: {
-        Args: { p_email: string; p_event_id: string; p_signature_url: string }
+      device_checkin_attendee: {
+        Args: {
+          p_device_token: string
+          p_event_id: string
+          p_signature_url: string
+        }
         Returns: Json
       }
-      checkin_trainee: {
+      device_checkin_trainee: {
         Args: {
-          p_email: string
+          p_device_token: string
           p_signature_url: string
           p_training_id: string
         }
+        Returns: Json
+      }
+      device_recheck_attendee: {
+        Args: { p_device_token: string; p_event_id: string }
+        Returns: Json
+      }
+      device_recheck_trainee: {
+        Args: { p_device_token: string; p_training_id: string }
         Returns: Json
       }
       gen_lookup_code_for_event: {
@@ -404,12 +443,8 @@ export type Database = {
         }
         Returns: boolean
       }
-      lookup_attendee: {
-        Args: { p_event_id: string; p_query: string }
-        Returns: Json
-      }
-      lookup_trainee: {
-        Args: { p_query: string; p_training_id: string }
+      lookup_by_device_token: {
+        Args: { p_device_token: string; p_id: string; p_kind: string }
         Returns: Json
       }
       normalize_email: { Args: { p: string }; Returns: string }
@@ -433,23 +468,39 @@ export type Database = {
         }
         Returns: Json
       }
-      register_trainee: {
-        Args: {
-          p_car_number: string
-          p_department: string
-          p_email?: string
-          p_inquiry: string
-          p_name: string
-          p_org_type: string
-          p_organization: string
-          p_position: string
-          p_privacy_agreed: boolean
-          p_signature_url: string
-          p_training_id: string
-        }
-        Returns: Json
-      }
-      walk_in_attendee: {
+      register_trainee:
+        | {
+            Args: {
+              p_car_number: string
+              p_department: string
+              p_email?: string
+              p_inquiry: string
+              p_name: string
+              p_org_type: string
+              p_organization: string
+              p_position: string
+              p_privacy_agreed: boolean
+              p_training_id: string
+            }
+            Returns: Json
+          }
+        | {
+            Args: {
+              p_car_number: string
+              p_department: string
+              p_email?: string
+              p_inquiry: string
+              p_name: string
+              p_org_type: string
+              p_organization: string
+              p_position: string
+              p_privacy_agreed: boolean
+              p_signature_url: string
+              p_training_id: string
+            }
+            Returns: Json
+          }
+      walk_in_attendee_self: {
         Args: {
           p_car_number: string
           p_department: string
@@ -465,7 +516,7 @@ export type Database = {
         }
         Returns: Json
       }
-      walk_in_trainee: {
+      walk_in_trainee_self: {
         Args: {
           p_car_number: string
           p_department: string

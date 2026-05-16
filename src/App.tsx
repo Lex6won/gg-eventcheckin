@@ -20,8 +20,6 @@ import AdminTrainingTrainees from "./pages/AdminTrainingTrainees";
 import AdminTrainingQR from "./pages/AdminTrainingQR";
 import TrainingRegisterPage from "./pages/TrainingRegisterPage";
 import RegisterPage from "./pages/RegisterPage";
-import AdminEventCheckin from "./pages/AdminEventCheckin";
-import AdminTrainingCheckin from "./pages/AdminTrainingCheckin";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -49,12 +47,10 @@ const App = () => (
               <Route path="events/:eventId" element={<AdminEventDetail />} />
               <Route path="events/:eventId/attendees" element={<AdminEventAttendees />} />
               <Route path="events/:eventId/qr" element={<AdminEventQR />} />
-              <Route path="events/:eventId/checkin" element={<AdminEventCheckin />} />
               <Route path="trainings" element={<AdminTrainings />} />
               <Route path="trainings/:trainingId" element={<AdminTrainingDetail />} />
               <Route path="trainings/:trainingId/trainees" element={<AdminTrainingTrainees />} />
               <Route path="trainings/:trainingId/qr" element={<AdminTrainingQR />} />
-              <Route path="trainings/:trainingId/checkin" element={<AdminTrainingCheckin />} />
               <Route path="attendees" element={<AdminAttendees />} />
               <Route path="settings" element={<AdminSettings />} />
             </Route>
