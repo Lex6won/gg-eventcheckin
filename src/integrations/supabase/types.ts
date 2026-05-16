@@ -189,21 +189,33 @@ export type Database = {
       }
       profiles: {
         Row: {
+          approval_status: string
+          approved_at: string | null
+          approved_by: string | null
           created_at: string | null
           department: string | null
           id: string
+          rejected_reason: string | null
           user_id: string
         }
         Insert: {
+          approval_status?: string
+          approved_at?: string | null
+          approved_by?: string | null
           created_at?: string | null
           department?: string | null
           id?: string
+          rejected_reason?: string | null
           user_id: string
         }
         Update: {
+          approval_status?: string
+          approved_at?: string | null
+          approved_by?: string | null
           created_at?: string | null
           department?: string | null
           id?: string
+          rejected_reason?: string | null
           user_id?: string
         }
         Relationships: []
@@ -402,7 +414,10 @@ export type Database = {
         Returns: undefined
       }
       _gen_device_token: { Args: never; Returns: string }
+      approve_admin: { Args: { p_user_id: string }; Returns: undefined }
       auto_transition_event_statuses: { Args: never; Returns: undefined }
+      delete_admin_user: { Args: { p_user_id: string }; Returns: undefined }
+      demote_super_admin: { Args: { p_user_id: string }; Returns: undefined }
       device_checkin_attendee: {
         Args: {
           p_device_token: string
@@ -443,11 +458,25 @@ export type Database = {
         }
         Returns: boolean
       }
+      list_admin_users: {
+        Args: never
+        Returns: {
+          approval_status: string
+          approved_at: string
+          created_at: string
+          department: string
+          email: string
+          rejected_reason: string
+          role: string
+          user_id: string
+        }[]
+      }
       lookup_by_device_token: {
         Args: { p_device_token: string; p_id: string; p_kind: string }
         Returns: Json
       }
       normalize_email: { Args: { p: string }; Returns: string }
+      promote_super_admin: { Args: { p_user_id: string }; Returns: undefined }
       promote_trainee_from_waitlist: {
         Args: { p_trainee_id: string }
         Returns: Json
@@ -500,6 +529,11 @@ export type Database = {
             }
             Returns: Json
           }
+      reject_admin: {
+        Args: { p_reason?: string; p_user_id: string }
+        Returns: undefined
+      }
+      revoke_admin: { Args: { p_user_id: string }; Returns: undefined }
       walk_in_attendee_self: {
         Args: {
           p_car_number: string

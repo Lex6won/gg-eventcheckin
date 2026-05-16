@@ -1,147 +1,93 @@
-## 최종 확정 계획
+# 부서관리자 승인 & 관리자 계정 관리
 
-**한 줄 요약**: 입력은 "최초 1회"만, 그 후엔 **QR 한 번 = 끝**. 이메일/6자리 코드 입력 화면은 전면 제거.
-
----
-
-## 두 가지 프로세스
-
-```text
-[프로세스 1] 사전신청자
-사전신청 폼 (서명 X) → 토큰 발급/저장 → "신청 완료"
-   ↓ (행사 당일 같은 폰)
-QR 스캔 → 토큰 인식 → 바로 서명 → "참석확인 완료"
-   ↓ (재확인 시점, 같은 폰)
-QR 스캔 → 즉시 "참석 재확인 완료"
-
-[프로세스 2] 미신청자 (당일 본인 폰)
-QR 스캔 (토큰 없음) → 정보입력 + 서명 → 토큰 발급 → "참석확인 완료"
-   ↓ (재확인 시점, 같은 폰)
-QR 스캔 → 즉시 "참석 재확인 완료"
-```
-
-폰을 바꾼 경우: 폰B에서 같은 이메일로 현장 폼을 제출하면 **사전신청 레코드를 자동 업그레이드**(서명 저장 + confirmed + 폰B에 토큰 재발급).
+## 목표
+1. 부서관리자가 가입하면 **즉시 사용 불가** → 전체관리자(super_admin)의 **승인** 이후에만 접근 허용
+2. 전체관리자가 관리자 목록에서 **승인 / 회수 / 권한 승급·강등 / 삭제** 가능
+3. 부서관리자는 **본인이 등록한 행사·교육·참석자만** 조회·수정·삭제 가능
+4. 전체 RLS / 라우팅 / 화면 접근 권한 재점검
 
 ---
 
-## 화면 분기 (`/training/:code`, `/attend/:code`)
+## 1. 가입·승인 흐름 변경
 
-| phase | 토큰 | 참여 상태 | 화면 |
-|-------|------|----------|------|
-| open | 없음 | – | 사전신청 폼 (서명 없음) |
-| open | 있음 | registered | "이미 신청하셨습니다" + 본인 정보 |
-| in_progress | 있음 | registered | **서명 화면 직행** → "참석확인 완료" |
-| in_progress | 있음 | confirmed/walk_in, 재확인 토글 ON, 미재확인 | **즉시 "재확인 완료"** |
-| in_progress | 있음 | 위 + 재확인 완료 또는 토글 OFF | "모든 절차 완료" / "이미 참석확인됨" |
-| in_progress | 없음 | – | 현장 참석확인 폼 (정보+서명) |
-| closed, 종료 후 ≤ 30분 | 있음 | 미재확인 + 토글 ON | **즉시 "재확인 완료"** |
-| closed (그 외) | – | – | 종료 안내 |
+### 현재
+- 가입 시 트리거 `handle_new_user_role`가 **자동으로 'admin' 역할 부여** → 이메일 인증만 끝나면 바로 모든 부서관리자 화면 사용 가능 (승인 절차 없음)
+
+### 변경 후
+- 가입 시 `profiles`만 생성, `user_roles` insert는 **하지 않음**
+- 가입 직후 상태: 로그인 가능하지만 어떤 역할도 없음 → "승인 대기 중" 안내 화면만 노출
+- 전체관리자가 승인하면 `user_roles`에 'admin' row 추가 → 정상 사용
 
 ---
 
-## 서명 / 토큰 시점
+## 2. DB 변경 (마이그레이션)
 
-| 단계 | 토큰 | 서명 |
-|------|------|------|
-| 사전신청 | 발급 | ✗ |
-| 최초 참석확인 (사전신청자) | 검증 | ✓ |
-| 최초 참석확인 (현장) | 발급 | ✓ |
-| 참석 재확인 (행사 종료 +30분까지) | 검증 | ✗ |
+### profiles 컬럼 추가
+- `approval_status text not null default 'pending'` ('pending' | 'approved' | 'rejected')
+- `approved_at timestamptz`, `approved_by uuid`
+- `rejected_reason text`
 
----
+### 트리거 변경
+- `handle_new_user_role` **제거** (자동 admin 부여 중단)
+- `handle_new_user_profile`는 유지 (profile 자동 생성)
 
-## 디바이스 토큰
+### 신규 RPC (모두 SECURITY DEFINER + super_admin 권한 체크)
+- `list_admin_users()` → 모든 사용자: email(auth.users 조인), department, approval_status, role, created_at, approved_at
+- `approve_admin(p_user_id uuid)` → profiles.approval_status='approved' + user_roles에 'admin' 삽입
+- `reject_admin(p_user_id uuid, p_reason text)` → approval_status='rejected'
+- `revoke_admin(p_user_id uuid)` → user_roles에서 'admin' 제거, approval_status='pending'으로 복원(또는 'rejected')
+- `promote_super_admin(p_user_id uuid)` / `demote_super_admin(p_user_id uuid)` (마지막 super_admin 보호)
+- `delete_admin_user(p_user_id uuid)` → auth.users 삭제(CASCADE로 profiles/user_roles/본인 데이터 정리)
+  - 본인이 만든 events/trainings는 삭제 전 확인 필요 → 우선 차단(데이터 있으면 거부) 또는 super_admin에게 이관 선택지 제공
 
-- `attendees.device_token text unique`, `trainees.device_token text unique` (32바이트 base64url)
-- `localStorage["device_token:event:<id>"]` / `device_token:training:<id>"` 에 저장
-- QR 진입 시 토큰이 있으면 RPC에 함께 전송 → 본인 매칭
-
----
-
-## DB 마이그레이션
-
-```sql
--- 컬럼 추가
-ALTER TABLE attendees
-  ADD COLUMN device_token text UNIQUE,
-  ADD COLUMN rechecked_at timestamptz;
-ALTER TABLE trainees
-  ADD COLUMN device_token text UNIQUE,
-  ADD COLUMN rechecked_at timestamptz,
-  ALTER COLUMN signature_url DROP NOT NULL;
-ALTER TABLE events    ADD COLUMN recheck_enabled boolean NOT NULL DEFAULT false;
-ALTER TABLE trainings ADD COLUMN recheck_enabled boolean NOT NULL DEFAULT false;
-```
-
-**가드 함수 신규**: `_assert_event_open_for_recheck(p_event_id)` — 종료 시각 + 30분까지 허용, `recheck_enabled = true` 검사. 교육도 동일.
+### 데이터 마이그레이션
+- 기존에 'admin' 역할 보유한 사용자는 `approval_status='approved'`로 백필 (서비스 중단 방지)
 
 ---
 
-## RPC 변경
+## 3. 인증 컨텍스트 (`src/lib/auth.tsx`)
+- `approvalStatus: 'pending' | 'approved' | 'rejected' | null` 추가
+- `isAdmin` (admin 역할 보유) 노출
+- 가입 직후 토스트 문구: "가입 신청이 접수되었습니다. 전체관리자 승인 후 사용 가능합니다."
 
-**수정**
-- `register_attendee_pre`, `register_trainee`
-  - `p_signature_url` 파라미터 제거, 서명 검증 제거
-  - 토큰 발급 후 반환값에 `device_token` 포함
+## 4. 라우팅·접근 권한 (`AdminLayout` / `App.tsx`)
+- 미로그인 → `/admin/login`
+- 로그인 + 역할 없음 → **승인 대기 화면**(로그아웃 버튼만)
+- 로그인 + role='admin' → 정상 화면, 단 `/admin/settings`의 관리자 목록 섹션 숨김
+- 로그인 + role='super_admin' → 전체 접근
 
-**신규**
-- `device_checkin_attendee(p_event_id, p_device_token, p_signature_url)`
-  - 토큰 매칭 → `registered`에서만 서명 저장 + `checked_in`
-- `device_checkin_trainee(...)` 동일
-- `walk_in_attendee_self(p_event_id, p_email, ..., p_signature_url, p_privacy_agreed)`
-  - 같은 이메일의 사전신청(`registered`) 레코드 있으면 → 업그레이드 (`checked_in` + 서명 + 토큰 재발급)
-  - 없으면 새 `walk_in` 레코드 + 토큰 발급
-  - 반환값에 `device_token`
-- `walk_in_trainee_self(...)` 동일
-- `device_recheck_attendee(p_event_id, p_device_token)` / `device_recheck_trainee(...)`
-  - `_assert_*_open_for_recheck` 통과 + 토큰 매칭 + `checked_in`/`confirmed`/`walk_in` + 미재확인 → `rechecked_at = now()`
+## 5. AdminSettings 개편
+탭 또는 섹션 2개:
+- **승인 대기** : pending 사용자 목록, [승인][거절] 버튼
+- **활성 관리자** : approved 사용자 목록, 역할 뱃지, [권한변경][권한회수][삭제] 메뉴
+- 본인 계정은 강등/삭제 비활성, 마지막 super_admin은 강등 차단
 
-**DROP**
-- `checkin_attendee`, `checkin_trainee` (이메일/코드 입력 경로)
-- `walk_in_attendee`, `walk_in_trainee` (관리자 키오스크용)
-- `lookup_attendee`, `lookup_trainee` (검색 UI 제거)
+## 6. 권한 재점검 (변경 없이 확인 후 필요시 보완)
+| 테이블 | SELECT | INSERT | UPDATE/DELETE | 비고 |
+|---|---|---|---|---|
+| events | public | created_by=auth.uid() | 본인 OR super_admin | QR 공개 페이지 위해 public select 유지 |
+| trainings | public | 동일 | 동일 | 동일 |
+| attendees | event 작성자 OR super_admin | RPC만 | 동일 | OK |
+| trainees | training 작성자 OR super_admin | RPC만 | 동일 | OK |
+| profiles | 본인 + super_admin | 본인 | 본인 | 신규 RPC가 super_admin 권한으로 수정 |
+| user_roles | 본인 + super_admin | 없음 | 없음 | RPC만 변경 |
+| export_audit_logs | 본인 + super_admin | 본인 | 없음 | OK |
 
----
-
-## 프론트엔드 변경
-
-**삭제**
-- `src/pages/AdminEventCheckin.tsx`, `src/pages/AdminTrainingCheckin.tsx`
-- `src/hooks/useKioskIdleLogout.ts`
-- `App.tsx` 라우트 `/admin/events/:eventId/checkin`, `/admin/trainings/:trainingId/checkin`
-- 이벤트/교육 카드·상세의 "현장 등록 모드" 진입 버튼
-
-**수정**
-- `RegisterPage.tsx`(사전신청): 서명 UI/로직 제거, 응답 토큰 localStorage 저장
-- `TrainingRegisterPage.tsx` / `AttendancePage.tsx`:
-  - phase × 토큰 자동 분기
-  - 토큰 있음 + registered → 서명 화면 직행
-  - 토큰 있음 + confirmed/walk_in + 토글 ON + 미재확인 → 자동 재확인 호출 + 완료 화면
-  - 토큰 없음 + in_progress → 현장 참석확인 폼 (정보+서명)
-  - 이메일/6자리 코드 입력 UI 완전 제거
-  - 폼 제출 응답의 `device_token` localStorage 저장
-- `CreateEventDialog.tsx` / `CreateTrainingDialog.tsx`: "참석 재확인 받기" 토글 추가
-- 참석자 목록/상세(`AdminEventAttendees`, `AdminTrainingTrainees`, `AdminAttendees`): "재확인 시각" 컬럼 + 통계 카드
-- `exportAttendees.ts`: "재확인 시각" 1열 추가
+추가 확인:
+- 클라이언트의 `created_by` 필터는 UX용이며 실제 보안은 RLS가 담당 (admin 강등 시 즉시 차단됨)
+- `events/trainings` public SELECT는 의도된 노출 (QR 페이지) — 변경 없음
 
 ---
 
-## 보안 / 검토
+## 기술 세부사항
+- `delete_admin_user`는 `auth.admin.deleteUser` 호출 대신 SQL로 `delete from auth.users where id = p_user_id` (security definer로 가능)
+- 마지막 super_admin 보호: `count(*) where role='super_admin'` ≥ 2 일 때만 강등/삭제 허용
+- 신규 RPC들은 모두 시작 부분에 `if not has_role(auth.uid(), 'super_admin') then raise exception 'Forbidden'; end if;`
 
-- 토큰은 32바이트 임의값, 단독으로 참석확인 불가(서명 단계 별도)
-- 재확인은 토큰만으로 가능하지만 이미 서명한 사람만 대상 + 종료 +30분 한정 → 피해 표면 작음
-- 사전신청자 자동 업그레이드는 같은 이메일 + 본인 폰 입력 → 본인 확인 수준 충분
-- 모든 새 RPC는 SECURITY DEFINER, 서명 받는 RPC는 길이 200,000 제한 유지
-
----
-
-## 작업 순서
-
-1. DB 마이그레이션 (컬럼 + 가드 함수 + RPC 신규/수정/DROP)
-2. 사전신청·참석 페이지 리팩토링 (서명/이메일 입력 제거, 토큰 흐름)
-3. 관리자 키오스크 페이지/라우트/진입 버튼 제거
-4. 생성 다이얼로그 재확인 토글 추가
-5. 참석자 목록·통계·Export에 재확인 시각 반영
-6. README/도움말 문구 정리
-
-승인하시면 마이그레이션부터 실행합니다.
+## 파일 변경 예정
+- (신규) `supabase/migrations/...sql`
+- `src/lib/auth.tsx` — approvalStatus/isAdmin 노출
+- `src/App.tsx` 또는 `src/components/AdminLayout.tsx` — 승인 대기 게이트
+- (신규) `src/pages/AdminPendingApproval.tsx`
+- `src/pages/AdminSettings.tsx` — 승인/관리 UI 전면 개편
+- `src/pages/AdminLogin.tsx` — 안내 문구 변경

@@ -29,7 +29,7 @@ const AdminLogin = () => {
           return;
         }
         await signUp(email, password, department.trim());
-        toast.success('부서관리자 등록이 완료되었습니다. 이메일 인증 후 로그인해주세요.');
+        toast.success('가입 신청이 접수되었습니다. 이메일 인증 후 전체관리자 승인이 완료되면 사용 가능합니다.');
         setMode('login');
       }
     } catch {
