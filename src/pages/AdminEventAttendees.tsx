@@ -39,6 +39,7 @@ interface Attendee {
   status: string;
   registered_at: string | null;
   checked_in_at: string | null;
+  rechecked_at: string | null;
 }
 
 interface EventData {
@@ -50,6 +51,7 @@ interface EventData {
   location: string;
   organizer: string;
   show_car_number: boolean;
+  recheck_enabled: boolean;
 }
 
 const AdminEventAttendees = () => {
@@ -67,7 +69,7 @@ const AdminEventAttendees = () => {
 
   const fetchData = useCallback(async () => {
     const [eventRes, attendeesRes] = await Promise.all([
-      supabase.from('events').select('id, title, event_date, start_time, end_time, location, organizer, show_car_number').eq('id', eventId!).single(),
+      supabase.from('events').select('id, title, event_date, start_time, end_time, location, organizer, show_car_number, recheck_enabled').eq('id', eventId!).single(),
       supabase.from('attendees').select('*').eq('event_id', eventId!).order('registered_at', { ascending: true }),
     ]);
 
@@ -426,6 +428,7 @@ const AdminEventAttendees = () => {
                   {event?.show_car_number && <th className="px-4 py-3 text-left font-medium">차량번호</th>}
                   {tab === 'attendees' && <th className="px-4 py-3 text-left font-medium">서명</th>}
                   <th className="px-4 py-3 text-left font-medium">{tab === 'applicants' ? '신청일시' : '참석시각'}</th>
+                  {tab === 'attendees' && event?.recheck_enabled && <th className="px-4 py-3 text-left font-medium">재확인</th>}
                   <th className="px-4 py-3 text-left font-medium w-12"></th>
                 </tr>
               </thead>
@@ -464,6 +467,13 @@ const AdminEventAttendees = () => {
                         ? new Date((tab === 'applicants' ? a.registered_at : a.checked_in_at)!).toLocaleString('ko-KR', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
                         : '-'}
                     </td>
+                    {tab === 'attendees' && event?.recheck_enabled && (
+                      <td className="px-4 py-3 tabular-nums text-muted-foreground text-xs">
+                        {a.rechecked_at
+                          ? new Date(a.rechecked_at).toLocaleString('ko-KR', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+                          : <span className="text-muted-foreground/60">미재확인</span>}
+                      </td>
+                    )}
                     <td className="px-4 py-3">
                       <AlertDialog>
                         <AlertDialogTrigger asChild>
