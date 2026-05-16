@@ -435,9 +435,6 @@ const AdminTrainingDetail = () => {
               <Button size="sm" variant="outline" onClick={() => navigate(`/admin/trainings/${trainingId}/qr`)}>
                 <Maximize2 className="w-4 h-4 mr-1" />QR 전체화면
               </Button>
-              <Button size="sm" onClick={() => navigate(`/admin/trainings/${trainingId}/checkin`)} className="bg-success hover:bg-success/90 text-success-foreground">
-                <ScanLine className="w-4 h-4 mr-1" />현장 체크인
-              </Button>
               <Button size="sm" variant="outline" onClick={openEdit}>
                 <Pencil className="w-4 h-4 mr-1" />수정
               </Button>
