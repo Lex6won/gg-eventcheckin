@@ -7,6 +7,9 @@ interface AuthContextType {
   user: User | null;
   loading: boolean;
   isSuperAdmin: boolean;
+  isAdmin: boolean;
+  hasAdminAccess: boolean;
+  approvalStatus: 'pending' | 'approved' | 'rejected' | null;
   department: string | null;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string, department: string) => Promise<void>;
@@ -20,17 +23,24 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [approvalStatus, setApprovalStatus] = useState<'pending' | 'approved' | 'rejected' | null>(null);
   const [department, setDepartment] = useState<string | null>(null);
 
   const fetchRoleAndProfile = async (userId: string) => {
     const [roleRes, profileRes] = await Promise.all([
       supabase.from('user_roles').select('role').eq('user_id', userId),
-      supabase.from('profiles').select('department').eq('user_id', userId).single(),
+      supabase.from('profiles').select('department, approval_status').eq('user_id', userId).maybeSingle(),
     ]);
 
     const roles = roleRes.data?.map(r => r.role) || [];
     setIsSuperAdmin(roles.includes('super_admin'));
+    setIsAdmin(roles.includes('admin') || roles.includes('super_admin'));
     setDepartment(profileRes.data?.department || null);
+    setApprovalStatus(
+      (profileRes.data as { approval_status?: string } | null)?.approval_status as
+        'pending' | 'approved' | 'rejected' | undefined || 'pending'
+    );
   };
 
   useEffect(() => {
@@ -41,6 +51,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setTimeout(() => fetchRoleAndProfile(session.user.id), 0);
       } else {
         setIsSuperAdmin(false);
+        setIsAdmin(false);
+        setApprovalStatus(null);
         setDepartment(null);
       }
       setLoading(false);
@@ -81,7 +93,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ session, user, loading, isSuperAdmin, department, signIn, signUp, signOut }}>
+    <AuthContext.Provider value={{ session, user, loading, isSuperAdmin, isAdmin, hasAdminAccess: isAdmin || isSuperAdmin, approvalStatus, department, signIn, signUp, signOut }}>
       {children}
     </AuthContext.Provider>
   );
