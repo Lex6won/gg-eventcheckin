@@ -141,8 +141,11 @@ const RegisterPage = () => {
           p_privacy_agreed: form.privacy_agreed,
         });
         if (error) throw error;
-        const r = res as { status: string };
+        const r = res as { status: string; device_token?: string };
         if (r.status === 'duplicate') { setDuplicate(true); return; }
+        if (r.device_token) {
+          try { localStorage.setItem(`device_token:event:${data.id}`, r.device_token); } catch {}
+        }
         setSuccess({ status: r.status });
       } else {
         const { data: res, error } = await supabase.rpc('register_trainee', {
@@ -154,14 +157,16 @@ const RegisterPage = () => {
           p_name: form.name.trim(),
           p_car_number: form.car_number.trim(),
           p_inquiry: '',
-          p_signature_url: '',
           p_privacy_agreed: form.privacy_agreed,
           p_email: form.email.trim(),
         });
         if (error) throw error;
-        const r = res as { status: string; position?: number };
+        const r = res as { status: string; position?: number; device_token?: string };
         if (r.status === 'duplicate') { setDuplicate(true); return; }
         if (r.status === 'full') { setClosed(true); return; }
+        if (r.device_token) {
+          try { localStorage.setItem(`device_token:training:${data.id}`, r.device_token); } catch {}
+        }
         setSuccess({ status: r.status, position: r.position });
       }
     } catch (err) {
