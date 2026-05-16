@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
   CheckCircle2, Calendar, MapPin, Clock, Loader2, Building2,
-  RotateCcw, AlertCircle, XCircle, Mail, ArrowLeft, UserPlus,
+  RotateCcw, AlertCircle, XCircle, RefreshCw,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -23,11 +23,19 @@ interface EventData {
   status: string | null;
   poster_url: string | null;
   show_car_number: boolean;
+  recheck_enabled: boolean;
 }
 
 const ORG_TYPES = ['경기도', '시군', '공공기관', '기타'] as const;
 
-type Step = 'choice' | 'email' | 'sign' | 'walkin';
+type Phase = 'open' | 'in_progress' | 'pre_reg_closed' | 'closed' | 'not_found';
+type Screen =
+  | 'loading' | 'notfound' | 'closed_no_action'
+  | 'pre_reg_link' | 'already_registered'
+  | 'sign' | 'walkin'
+  | 'success_checkin' | 'success_recheck' | 'already_checked_in' | 'already_rechecked';
+
+const TOKEN_KEY = (eventId: string) => `device_token:event:${eventId}`;
 
 const AttendancePage = () => {
   const { accessCode } = useParams<{ accessCode: string }>();
@@ -36,66 +44,105 @@ const AttendancePage = () => {
 
   const sigCanvas = useRef<SignatureCanvas>(null);
   const sigContainerRef = useRef<HTMLDivElement>(null);
-  const lastCanvasWidthRef = useRef<number>(0);
+  const lastCanvasWidthRef = useRef(0);
 
   const [event, setEvent] = useState<EventData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [notFound, setNotFound] = useState(false);
-  const [expired, setExpired] = useState(false);
+  const [phase, setPhase] = useState<Phase>('open');
+  const [screen, setScreen] = useState<Screen>('loading');
+  const [participantInfo, setParticipantInfo] = useState<{ name: string; organization: string } | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [success, setSuccess] = useState<null | { name: string; mode: 'checkin' | 'walkin' }>(null);
-  const [alreadyDone, setAlreadyDone] = useState<null | { name: string }>(null);
-
-  const [step, setStep] = useState<Step>('choice');
-  const [email, setEmail] = useState('');
-  const [matched, setMatched] = useState<{ name: string; organization: string } | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [form, setForm] = useState({
-    org_type: '', custom_org_type: '', organization: '', department: '',
-    position: '', name: '', phone: '', car_number: '', privacy_agreed: false,
+    email: '', org_type: '', organization: '', department: '', position: '',
+    name: '', phone: '', car_number: '', privacy_agreed: false,
   });
 
   const resizeCanvas = useCallback((force = false) => {
     if (!sigCanvas.current || !sigContainerRef.current) return;
-    const container = sigContainerRef.current;
-    const newWidth = container.offsetWidth;
-    if (newWidth <= 0) return;
-    // Skip if width hasn't changed (e.g., mobile address-bar show/hide fires
-    // window resize but width is unchanged → would otherwise wipe signature).
-    if (!force && newWidth === lastCanvasWidthRef.current) return;
+    const w = sigContainerRef.current.offsetWidth;
+    if (w <= 0) return;
+    if (!force && w === lastCanvasWidthRef.current) return;
     const canvas = sigCanvas.current.getCanvas();
     const ratio = window.devicePixelRatio || 1;
-    // Preserve any in-progress signature across width changes.
-    const hadDrawing = !sigCanvas.current.isEmpty();
-    const prevDataUrl = hadDrawing ? sigCanvas.current.toDataURL('image/png') : null;
-    canvas.width = newWidth * ratio;
+    const had = !sigCanvas.current.isEmpty();
+    const prev = had ? sigCanvas.current.toDataURL('image/png') : null;
+    canvas.width = w * ratio;
     canvas.height = 200 * ratio;
-    canvas.style.width = `${newWidth}px`;
+    canvas.style.width = `${w}px`;
     canvas.style.height = '200px';
     canvas.getContext('2d')?.scale(ratio, ratio);
     sigCanvas.current.clear();
-    if (prevDataUrl) {
-      // fromDataURL repaints the saved strokes onto the resized canvas.
-      sigCanvas.current.fromDataURL(prevDataUrl, { width: newWidth, height: 200 });
-    }
-    lastCanvasWidthRef.current = newWidth;
+    if (prev) sigCanvas.current.fromDataURL(prev, { width: w, height: 200 });
+    lastCanvasWidthRef.current = w;
   }, []);
 
+  // Resolve initial screen based on phase + token
   useEffect(() => {
-    const fetchEvent = async () => {
-      if (!code) { setNotFound(true); setLoading(false); return; }
-      const { data, error } = await supabase.from('events').select('*').eq('access_code', code).maybeSingle();
-      if (error || !data) { setNotFound(true); setLoading(false); return; }
-      if (data.status === '완료') { setEvent(data); setExpired(true); setLoading(false); return; }
-      setEvent(data);
-      setLoading(false);
+    const init = async () => {
+      if (!code) { setScreen('notfound'); return; }
+      const { data: phaseData } = await supabase.rpc('get_event_public_status', { p_code: code });
+      const p = (phaseData as { phase?: string })?.phase as Phase | undefined;
+      if (!p || p === 'not_found') { setScreen('notfound'); return; }
+      setPhase(p);
+
+      const { data: ev } = await supabase.from('events').select('*').eq('access_code', code).maybeSingle();
+      if (!ev) { setScreen('notfound'); return; }
+      setEvent(ev as EventData);
+
+      const token = localStorage.getItem(TOKEN_KEY(ev.id));
+
+      // Check participant state if token exists
+      if (token) {
+        const { data: lookup } = await supabase.rpc('lookup_by_device_token', {
+          p_kind: 'event', p_id: ev.id, p_device_token: token,
+        });
+        const r = lookup as { status?: string; name?: string; organization?: string; record_status?: string; rechecked_at?: string | null };
+        if (r?.status === 'found') {
+          const info = { name: r.name || '', organization: r.organization || '' };
+          setParticipantInfo(info);
+
+          if (r.record_status === 'registered') {
+            if (p === 'in_progress') return setScreen('sign');
+            if (p === 'open') return setScreen('already_registered');
+            return setScreen('closed_no_action');
+          }
+          // checked_in or walk_in
+          if (r.rechecked_at) return setScreen('already_rechecked');
+          if (ev.recheck_enabled) {
+            // Try recheck if in-progress OR within 30 min closed
+            if (p === 'in_progress' || p === 'closed') {
+              try {
+                const { data: rd, error } = await supabase.rpc('device_recheck_attendee', {
+                  p_event_id: ev.id, p_device_token: token,
+                });
+                if (error) throw error;
+                const rr = rd as { status: string; attendee?: { name: string; organization: string } };
+                if (rr.status === 'rechecked') {
+                  if (rr.attendee) setParticipantInfo(rr.attendee);
+                  return setScreen('success_recheck');
+                }
+                if (rr.status === 'already') return setScreen('already_rechecked');
+              } catch {
+                return setScreen('already_checked_in');
+              }
+            }
+          }
+          return setScreen('already_checked_in');
+        }
+        // Token invalid → fall through to no-token logic
+      }
+
+      // No valid token
+      if (p === 'open') return setScreen('pre_reg_link');
+      if (p === 'pre_reg_closed' || p === 'in_progress') return setScreen('walkin');
+      return setScreen('closed_no_action');
     };
-    fetchEvent();
+    init();
   }, [code]);
 
+  // Resize signature canvas when entering sign/walkin
   useEffect(() => {
-    if ((step !== 'sign' && step !== 'walkin') || !event) return;
-    // Reset width tracking on entering signature step so first init runs.
+    if (screen !== 'sign' && screen !== 'walkin') return;
     lastCanvasWidthRef.current = 0;
     const t = setTimeout(() => resizeCanvas(true), 100);
     const onResize = () => resizeCanvas(false);
@@ -105,73 +152,35 @@ const AttendancePage = () => {
       ro = new ResizeObserver(() => resizeCanvas(false));
       ro.observe(sigContainerRef.current);
     }
-    return () => {
-      clearTimeout(t);
-      window.removeEventListener('resize', onResize);
-      ro?.disconnect();
-    };
-  }, [step, event, resizeCanvas]);
+    return () => { clearTimeout(t); window.removeEventListener('resize', onResize); ro?.disconnect(); };
+  }, [screen, resizeCanvas]);
 
-  const handleEmailLookup = async (ev: React.FormEvent) => {
-    ev.preventDefault();
+  const handleCheckinWithToken = async () => {
     if (!event) return;
-    const q = email.trim();
-    if (!q) { setErrors({ email: '이메일을 입력해주세요.' }); return; }
-    const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(q);
-    if (!isEmail) {
-      setErrors({ email: '올바른 이메일 형식이 아닙니다.' }); return;
+    if (!sigCanvas.current || sigCanvas.current.isEmpty()) {
+      setErrors({ signature: '서명을 해주세요.' }); return;
     }
-    setErrors({});
-    setSubmitting(true);
-    try {
-      const { data: lookup, error } = await supabase.rpc('lookup_attendee', {
-        p_event_id: event.id, p_query: q,
-      });
-      if (error) throw error;
-      const r = lookup as any;
-      if (r.status === 'not_found') { setStep('walkin'); return; }
-      if (r.status === 'multiple') {
-        setErrors({ email: '같은 이메일로 신청한 내역이 여러 건입니다. 담당자에게 문의해주세요.' });
-        return;
-      }
-      const data = r.attendee as { name: string; organization: string; status: string };
-      if (data.status === 'checked_in' || data.status === 'walk_in') {
-        setAlreadyDone({ name: data.name });
-        return;
-      }
-      setMatched({ name: data.name, organization: data.organization });
-      setStep('sign');
-    } catch (err) {
-      console.error(err);
-      toast.error('조회 중 오류가 발생했습니다.');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const handleCheckin = async () => {
-    if (!event || !sigCanvas.current || sigCanvas.current.isEmpty()) {
-      setErrors({ signature: '서명을 해주세요.' });
-      return;
-    }
+    const token = localStorage.getItem(TOKEN_KEY(event.id));
+    if (!token) { setScreen('walkin'); return; }
     setSubmitting(true);
     try {
       const sig = sigCanvas.current.toDataURL('image/png');
-      const { data, error } = await supabase.rpc('checkin_attendee', {
-        p_event_id: event.id,
-        p_email: email.trim(),
-        p_signature_url: sig,
+      const { data, error } = await supabase.rpc('device_checkin_attendee', {
+        p_event_id: event.id, p_device_token: token, p_signature_url: sig,
       });
       if (error) throw error;
-      const r = data as any;
-      if (r.status === 'already') { setAlreadyDone({ name: r.attendee?.name || matched?.name || '' }); return; }
-      setSuccess({ name: r.attendee?.name || matched?.name || '', mode: 'checkin' });
+      const r = data as { status: string; attendee?: { name: string; organization: string } };
+      if (r.status === 'not_found') {
+        localStorage.removeItem(TOKEN_KEY(event.id));
+        setScreen('walkin'); return;
+      }
+      if (r.attendee) setParticipantInfo(r.attendee);
+      if (r.status === 'already') setScreen('already_checked_in');
+      else setScreen('success_checkin');
     } catch (err) {
       console.error(err);
-      toast.error('체크인 중 오류가 발생했습니다.');
-    } finally {
-      setSubmitting(false);
-    }
+      toast.error('참석 확인 중 오류가 발생했습니다.');
+    } finally { setSubmitting(false); }
   };
 
   const updateField = (k: string, v: string | boolean) => {
@@ -181,6 +190,8 @@ const AttendancePage = () => {
 
   const validateWalkin = () => {
     const e: Record<string, string> = {};
+    if (!form.email.trim()) e.email = '이메일을 입력해주세요.';
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) e.email = '올바른 이메일 형식이 아닙니다.';
     if (!form.org_type) e.org_type = '소속 구분을 선택해주세요.';
     if (!form.organization.trim()) e.organization = '기관명을 입력해주세요.';
     if (!form.department.trim()) e.department = '부서명을 입력해주세요.';
@@ -199,11 +210,10 @@ const AttendancePage = () => {
     setSubmitting(true);
     try {
       const sig = sigCanvas.current!.toDataURL('image/png');
-      const finalOrgType = form.org_type;
-      const { data, error } = await supabase.rpc('walk_in_attendee', {
+      const { data, error } = await supabase.rpc('walk_in_attendee_self', {
         p_event_id: event.id,
-        p_email: email.trim(),
-        p_org_type: finalOrgType,
+        p_email: form.email.trim(),
+        p_org_type: form.org_type,
         p_organization: form.organization.trim(),
         p_department: form.department.trim(),
         p_position: form.position.trim(),
@@ -214,301 +224,295 @@ const AttendancePage = () => {
         p_privacy_agreed: form.privacy_agreed,
       });
       if (error) throw error;
-      const r = data as any;
-      if (r.status === 'duplicate') { setAlreadyDone({ name: form.name.trim() }); return; }
-      setSuccess({ name: form.name.trim(), mode: 'walkin' });
+      const r = data as { status: string; device_token?: string; attendee?: { name: string; organization: string } };
+      if (r.device_token) localStorage.setItem(TOKEN_KEY(event.id), r.device_token);
+      const info = r.attendee || { name: form.name.trim(), organization: form.organization.trim() };
+      setParticipantInfo(info);
+      if (r.status === 'already') setScreen('already_checked_in');
+      else setScreen('success_checkin');
     } catch (err) {
       console.error(err);
-      toast.error('현장 등록 중 오류가 발생했습니다.');
-    } finally {
-      setSubmitting(false);
-    }
+      toast.error('참석 확인 중 오류가 발생했습니다.');
+    } finally { setSubmitting(false); }
   };
 
-  const reset = () => {
-    setEmail(''); setMatched(null); setStep('choice'); setSuccess(null);
-    setAlreadyDone(null); setErrors({});
-    setForm({ org_type:'', custom_org_type:'', organization:'', department:'',
-      position:'', name:'', phone:'', car_number:'', privacy_agreed:false });
-  };
+  // ---------- RENDER ----------
+  if (screen === 'loading') return (
+    <div className="min-h-svh bg-background flex items-center justify-center">
+      <Loader2 className="w-8 h-8 animate-spin text-primary" />
+    </div>
+  );
 
-  // ---- Status screens ----
-  if (loading) return <div className="min-h-svh bg-background flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
-  if (notFound) return (
+  if (screen === 'notfound') return (
     <div className="min-h-svh bg-background flex items-center justify-center p-4">
       <div className="text-center space-y-4 animate-fade-in">
         <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-destructive/10"><XCircle className="w-10 h-10 text-destructive" /></div>
         <h2 className="text-xl font-bold text-foreground">행사 정보를 찾을 수 없습니다</h2>
-        <p className="text-muted-foreground text-sm">접속코드를 다시 확인해주세요.</p>
+        <p className="text-muted-foreground text-sm">QR 또는 접속코드를 다시 확인해주세요.</p>
       </div>
     </div>
   );
-  if (expired) return (
+
+  if (screen === 'closed_no_action') return (
     <div className="min-h-svh bg-background flex items-center justify-center p-4">
       <div className="text-center space-y-4 animate-fade-in">
         <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-warning/10"><AlertCircle className="w-10 h-10 text-warning" /></div>
-        <h2 className="text-xl font-bold text-foreground">참석 등록이 마감되었습니다</h2>
+        <h2 className="text-xl font-bold text-foreground">행사가 종료되었습니다</h2>
         <p className="text-muted-foreground text-sm">{event?.title}은(는) 종료되었습니다.</p>
       </div>
     </div>
   );
 
-  if (alreadyDone) return (
+  if (screen === 'pre_reg_link') return (
     <div className="min-h-svh bg-background flex items-center justify-center p-4">
-      <div className="text-center space-y-4 animate-fade-in">
-        <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-warning/10"><AlertCircle className="w-10 h-10 text-warning" /></div>
-        <h2 className="text-xl font-bold text-foreground">이미 체크인 완료</h2>
-        <p className="text-muted-foreground text-sm"><strong>{alreadyDone.name}</strong>님은 이미 참석 확인이 완료되었습니다.</p>
-        <Button variant="outline" className="rounded-xl" onClick={reset}>다른 사람 확인</Button>
+      <div className="text-center space-y-4 animate-fade-in max-w-md">
+        <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-primary/10"><Calendar className="w-10 h-10 text-primary" /></div>
+        <h2 className="text-xl font-bold text-foreground">사전 신청 기간입니다</h2>
+        <p className="text-muted-foreground text-sm">행사 당일이 되면 이 페이지에서 바로 참석 확인이 가능합니다.<br />지금은 사전 신청을 진행해주세요.</p>
+        <Link to={`/register/${code}`}>
+          <Button className="px-8 h-12 text-base rounded-xl">사전 신청하기</Button>
+        </Link>
       </div>
     </div>
   );
 
-  if (success) return (
+  if (screen === 'already_registered' && participantInfo) return (
+    <div className="min-h-svh bg-background flex items-center justify-center p-4">
+      <div className="text-center space-y-4 animate-fade-in max-w-md">
+        <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-success/10"><CheckCircle2 className="w-10 h-10 text-success" /></div>
+        <h2 className="text-xl font-bold text-foreground">사전 신청 완료</h2>
+        <p className="text-muted-foreground text-sm">
+          <strong className="text-foreground">{participantInfo.name}</strong>님,<br />
+          행사 당일 이 페이지에서 바로 서명만 하시면 참석 확인이 완료됩니다.
+        </p>
+      </div>
+    </div>
+  );
+
+  if (screen === 'already_checked_in' && participantInfo) return (
     <div className="min-h-svh bg-background flex items-center justify-center p-4">
       <div className="text-center space-y-4 animate-fade-in">
+        <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-success/10"><CheckCircle2 className="w-10 h-10 text-success" /></div>
+        <h2 className="text-xl font-bold text-foreground">이미 참석 확인 완료</h2>
+        <p className="text-muted-foreground text-sm"><strong className="text-foreground">{participantInfo.name}</strong>님의 참석이 확인되었습니다.</p>
+        {event?.recheck_enabled && <p className="text-xs text-muted-foreground">행사 종료 무렵 이 페이지에서 한 번 더 QR을 찍어 재확인해주세요.</p>}
+      </div>
+    </div>
+  );
+
+  if (screen === 'already_rechecked' && participantInfo) return (
+    <div className="min-h-svh bg-background flex items-center justify-center p-4">
+      <div className="text-center space-y-4 animate-fade-in">
+        <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-success/10"><CheckCircle2 className="w-10 h-10 text-success" /></div>
+        <h2 className="text-xl font-bold text-foreground">모든 절차 완료 ✓</h2>
+        <p className="text-muted-foreground text-sm"><strong className="text-foreground">{participantInfo.name}</strong>님,<br />참석 및 재확인이 모두 완료되었습니다.</p>
+      </div>
+    </div>
+  );
+
+  if (screen === 'success_checkin' && participantInfo) return (
+    <div className="min-h-svh bg-background flex items-center justify-center p-4">
+      <div className="text-center space-y-4 animate-fade-in max-w-md">
         <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-success/10 animate-check-bounce">
           <CheckCircle2 className="w-10 h-10 text-success" />
         </div>
         <h2 className="text-xl font-bold text-foreground">참석 확인 완료 ✓</h2>
         <p className="text-muted-foreground text-sm">
-          <strong className="text-foreground">{success.name}</strong>님,<br />
-          {success.mode === 'walkin' ? '현장 등록 및 ' : ''}참석이 확인되었습니다.
+          <strong className="text-foreground">{participantInfo.name}</strong>님,<br />참석이 정상적으로 확인되었습니다.
         </p>
-        <div className="flex flex-col gap-3 mt-4">
-          <Button className="px-8 h-12 text-base rounded-xl" onClick={reset}>다음 사람 체크인</Button>
-          <Button variant="outline" className="px-8 h-12 text-base rounded-xl" onClick={() => window.location.href = '/'}>확인</Button>
-        </div>
+        {event?.recheck_enabled && (
+          <p className="text-xs text-muted-foreground">행사 종료 무렵 이 페이지를 한 번 더 열어주세요. QR만 찍으면 자동 재확인됩니다.</p>
+        )}
       </div>
     </div>
   );
 
-  // ---- Main flows ----
-  return (
+  if (screen === 'success_recheck' && participantInfo) return (
+    <div className="min-h-svh bg-background flex items-center justify-center p-4">
+      <div className="text-center space-y-4 animate-fade-in max-w-md">
+        <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-success/10 animate-check-bounce">
+          <RefreshCw className="w-10 h-10 text-success" />
+        </div>
+        <h2 className="text-xl font-bold text-foreground">참석 재확인 완료 ✓</h2>
+        <p className="text-muted-foreground text-sm">
+          <strong className="text-foreground">{participantInfo.name}</strong>님,<br />참석 재확인이 완료되었습니다. 수고하셨습니다.
+        </p>
+      </div>
+    </div>
+  );
+
+  // ----- Signature (pre-registered → check-in)
+  if (screen === 'sign' && event && participantInfo) return (
     <div className="min-h-svh bg-muted/30 pb-8" translate="no">
       <div className="bg-primary text-primary-foreground px-4 py-3 flex items-center gap-3">
-        <div className="w-10 h-10 rounded-lg bg-primary-foreground/20 flex items-center justify-center shrink-0">
-          <Building2 className="w-6 h-6" />
-        </div>
-        <span className="text-sm font-medium opacity-90">행사 현장 체크인</span>
+        <div className="w-10 h-10 rounded-lg bg-primary-foreground/20 flex items-center justify-center shrink-0"><Building2 className="w-6 h-6" /></div>
+        <span className="text-sm font-medium opacity-90">참석 확인</span>
       </div>
-
-      <div className="px-4 pt-5 max-w-lg mx-auto">
-        <div className="bg-card rounded-xl shadow-card overflow-hidden mb-5 animate-fade-in">
-          {event?.poster_url && <img src={event.poster_url} alt="포스터" className="w-full max-h-56 object-contain bg-secondary/30" />}
-          <div className="p-5">
-            <h1 className="text-lg font-bold text-foreground leading-snug">{event?.title}</h1>
-            <div className="mt-3 space-y-1.5 text-sm text-muted-foreground">
-              <div className="flex items-center gap-2"><Calendar className="w-4 h-4 text-primary shrink-0" /><span>{event?.event_date}</span></div>
-              <div className="flex items-center gap-2"><Clock className="w-4 h-4 text-primary shrink-0" /><span>{event?.start_time?.slice(0,5)} ~ {event?.end_time?.slice(0,5)}</span></div>
-              <div className="flex items-center gap-2"><MapPin className="w-4 h-4 text-primary shrink-0" /><span>{event?.location}</span></div>
-            </div>
+      <div className="px-4 pt-5 max-w-lg mx-auto space-y-5">
+        <div className="bg-card rounded-xl shadow-card p-5 animate-fade-in">
+          <h1 className="text-lg font-bold text-foreground leading-snug">{event.title}</h1>
+          <div className="mt-3 space-y-1.5 text-sm text-muted-foreground">
+            <div className="flex items-center gap-2"><Calendar className="w-4 h-4 text-primary shrink-0" /><span>{event.event_date}</span></div>
+            <div className="flex items-center gap-2"><Clock className="w-4 h-4 text-primary shrink-0" /><span>{event.start_time?.slice(0,5)} ~ {event.end_time?.slice(0,5)}</span></div>
+            <div className="flex items-center gap-2"><MapPin className="w-4 h-4 text-primary shrink-0" /><span>{event.location}</span></div>
           </div>
         </div>
-
-        {step === 'choice' && (
-          <div className="space-y-4 animate-fade-in">
-            <button type="button" onClick={() => setStep('email')}
-              className="w-full bg-card rounded-xl shadow-card p-5 text-left hover:bg-secondary/30 transition-colors border-2 border-primary/30">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
-                  <Mail className="w-6 h-6 text-primary" />
-                </div>
-                <div className="flex-1">
-                  <p className="text-base font-semibold text-foreground">사전 신청 했어요</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">이메일로 빠르게 참석 확인</p>
-                </div>
-              </div>
-            </button>
-            <button type="button" onClick={() => setStep('walkin')}
-              className="w-full bg-card rounded-xl shadow-card p-5 text-left hover:bg-secondary/30 transition-colors border border-border">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-xl bg-secondary flex items-center justify-center shrink-0">
-                  <UserPlus className="w-6 h-6 text-foreground" />
-                </div>
-                <div className="flex-1">
-                  <p className="text-base font-semibold text-foreground">사전 신청 안 했어요</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">바로 현장 등록 + 참석 확인</p>
-                </div>
-              </div>
+        <div className="bg-success/10 border border-success/30 rounded-xl p-4 animate-fade-in">
+          <p className="text-sm text-foreground">
+            <span className="font-semibold">{participantInfo.name}</span>님 ({participantInfo.organization})<br />
+            <span className="text-muted-foreground">사전 신청이 확인되었습니다. 서명만 해주세요.</span>
+          </p>
+        </div>
+        <div className="bg-card rounded-xl shadow-card p-5 space-y-3 animate-fade-in">
+          <div className="flex items-center justify-between">
+            <label className="text-sm font-semibold text-foreground">서명 <span className="text-destructive">*</span></label>
+            <button type="button" onClick={() => { sigCanvas.current?.clear(); setErrors({...errors, signature: ''}); }}
+              className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
+              <RotateCcw className="w-3 h-3" />다시 쓰기
             </button>
           </div>
-        )}
-
-        {step === 'email' && (
-          <form onSubmit={handleEmailLookup} className="space-y-5">
-            <div className="bg-card rounded-xl shadow-card p-5 space-y-4 animate-fade-in">
-              <div>
-                <label className="text-sm font-semibold text-foreground flex items-center gap-1.5 mb-2">
-                  <Mail className="w-4 h-4 text-primary" />사전 신청 이메일로 확인
-                </label>
-                <Input type="text" inputMode="email" autoComplete="email" autoFocus
-                  value={email} onChange={(e) => setEmail(e.target.value)}
-                  placeholder="사전 신청 시 입력한 이메일"
-                  className={`h-12 bg-secondary/50 border-border/60 ${errors.email ? 'border-destructive' : ''}`} />
-                {errors.email && <p className="text-xs text-destructive mt-1">{errors.email}</p>}
-              </div>
-              <div className="flex gap-3">
-                <Button variant="outline" type="button" onClick={() => setStep('choice')} className="h-14 rounded-xl"><ArrowLeft className="w-4 h-4" /></Button>
-                <Button type="submit" disabled={submitting} className="flex-1 h-14 text-base rounded-xl font-semibold">
-                  {submitting ? <><Loader2 className="w-4 h-4 animate-spin mr-2" />확인 중...</> : '확인'}
-                </Button>
-              </div>
-            </div>
-          </form>
-        )}
-
-        {step === 'sign' && matched && (
-          <div className="space-y-5">
-            <div className="bg-success/10 border border-success/30 rounded-xl p-4 animate-fade-in">
-              <p className="text-sm text-foreground">
-                <span className="font-semibold">{matched.name}</span>님 ({matched.organization})<br />
-                <span className="text-muted-foreground">사전 신청이 확인되었습니다. 서명만 해주세요.</span>
-              </p>
-            </div>
-            <div className="bg-card rounded-xl shadow-card p-5 space-y-3 animate-fade-in">
-              <div className="flex items-center justify-between">
-                <label className="text-sm font-semibold text-foreground">서명 <span className="text-destructive">*</span></label>
-                <button type="button" onClick={() => { sigCanvas.current?.clear(); setErrors({...errors, signature: ''}); }}
-                  className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
-                  <RotateCcw className="w-3 h-3" />다시 쓰기
-                </button>
-              </div>
-              <div ref={sigContainerRef}
-                className={`border-2 border-dashed rounded-xl bg-white overflow-hidden relative ${errors.signature ? 'border-destructive' : 'border-border'}`}>
-                <SignatureCanvas ref={sigCanvas}
-                  canvasProps={{ className: 'w-full cursor-crosshair touch-none', style: { width: '100%', height: '200px' } }}
-                  backgroundColor="rgba(255,255,255,0)"
-                  onEnd={() => { if (errors.signature) setErrors({...errors, signature: ''}); }} />
-                <span className="absolute inset-0 flex items-center justify-center text-sm text-muted-foreground/40 pointer-events-none select-none">서명해주세요</span>
-              </div>
-              {errors.signature && <p className="text-xs text-destructive">{errors.signature}</p>}
-            </div>
-            <div className="flex gap-3">
-              <Button variant="outline" type="button" onClick={reset} className="h-14 rounded-xl"><ArrowLeft className="w-4 h-4" /></Button>
-              <Button onClick={handleCheckin} disabled={submitting} className="flex-1 h-14 text-base rounded-xl font-semibold">
-                {submitting ? <><Loader2 className="w-4 h-4 animate-spin mr-2" />처리 중...</> : '체크인 완료'}
-              </Button>
-            </div>
+          <div ref={sigContainerRef}
+            className={`border-2 border-dashed rounded-xl bg-white overflow-hidden relative ${errors.signature ? 'border-destructive' : 'border-border'}`}>
+            <SignatureCanvas ref={sigCanvas}
+              canvasProps={{ className: 'w-full cursor-crosshair touch-none', style: { width: '100%', height: '200px' } }}
+              backgroundColor="rgba(255,255,255,0)"
+              onEnd={() => { if (errors.signature) setErrors({...errors, signature: ''}); }} />
+            <span className="absolute inset-0 flex items-center justify-center text-sm text-muted-foreground/40 pointer-events-none select-none">서명해주세요</span>
           </div>
-        )}
-
-        {step === 'walkin' && (
-          <form onSubmit={handleWalkin} className="space-y-5">
-            <div className="bg-primary/5 border border-primary/30 rounded-xl p-4 text-sm text-foreground flex items-start gap-2 animate-fade-in">
-              <UserPlus className="w-5 h-5 text-primary shrink-0 mt-0.5" />
-              <span>현장에서 정보를 입력하고 <strong>바로 참석 확인</strong>해드립니다.</span>
-            </div>
-
-            <div className="bg-card rounded-xl shadow-card p-5 space-y-5 animate-fade-in">
-              <div className="space-y-2">
-                <label className="text-sm font-semibold text-foreground">소속(구분) <span className="text-destructive">*</span></label>
-                <div className="flex gap-3">
-                  {ORG_TYPES.map((t) => (
-                    <label key={t} className={`flex-1 text-center py-2.5 rounded-lg border-2 cursor-pointer text-sm font-medium transition-all ${
-                      form.org_type === t ? 'border-primary bg-primary/10 text-primary' : 'border-border bg-secondary/50 text-muted-foreground hover:border-primary/40'
-                    }`}>
-                      <input type="radio" name="org_type" value={t} checked={form.org_type === t}
-                        onChange={(e) => {
-                          const v = e.target.value;
-                          setForm((prev) => ({
-                            ...prev,
-                            org_type: v,
-                            organization: v === '경기도' ? '경기도' : (prev.org_type === '경기도' ? '' : prev.organization),
-                          }));
-                          if (errors.org_type) setErrors({ ...errors, org_type: '' });
-                          if (v === '경기도' && errors.organization) setErrors({ ...errors, organization: '' });
-                        }} className="sr-only" />{t}
-                    </label>
-                  ))}
-                </div>
-                {errors.org_type && <p className="text-xs text-destructive">{errors.org_type}</p>}
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-sm font-semibold text-foreground">기관명 <span className="text-destructive">*</span></label>
-                <Input value={form.organization} onChange={(e) => updateField('organization', e.target.value)}
-                  disabled={form.org_type === '경기도'}
-                  placeholder={form.org_type === '경기도' ? '경기도 (자동 입력)' : '기관명을 입력해주세요'}
-                  className={`h-12 bg-secondary/50 border-border/60 ${errors.organization ? 'border-destructive' : ''} ${form.org_type === '경기도' ? 'opacity-70' : ''}`} />
-                {errors.organization && <p className="text-xs text-destructive">{errors.organization}</p>}
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-sm font-semibold text-foreground">부서명 <span className="text-destructive">*</span></label>
-                <Input value={form.department} onChange={(e) => updateField('department', e.target.value)}
-                  className={`h-12 bg-secondary/50 border-border/60 ${errors.department ? 'border-destructive' : ''}`} />
-                {errors.department && <p className="text-xs text-destructive">{errors.department}</p>}
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-sm font-semibold text-foreground">직급(위) <span className="text-destructive">*</span></label>
-                <Input value={form.position} onChange={(e) => updateField('position', e.target.value)}
-                  className={`h-12 bg-secondary/50 border-border/60 ${errors.position ? 'border-destructive' : ''}`} />
-                {errors.position && <p className="text-xs text-destructive">{errors.position}</p>}
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-sm font-semibold text-foreground">성함 <span className="text-destructive">*</span></label>
-                <Input value={form.name} onChange={(e) => updateField('name', e.target.value)}
-                  className={`h-12 bg-secondary/50 border-border/60 ${errors.name ? 'border-destructive' : ''}`} />
-                {errors.name && <p className="text-xs text-destructive">{errors.name}</p>}
-              </div>
-
-              {event?.show_car_number && (
-                <div className="space-y-1.5">
-                  <label className="text-sm font-semibold text-foreground">차량번호</label>
-                  <Input value={form.car_number} onChange={(e) => updateField('car_number', e.target.value)}
-                    className="h-12 bg-secondary/50 border-border/60" />
-                </div>
-              )}
-            </div>
-
-            <div className="bg-card rounded-xl shadow-card p-5 space-y-3 animate-fade-in">
-              <div className="flex items-center justify-between">
-                <label className="text-sm font-semibold text-foreground">서명 <span className="text-destructive">*</span></label>
-                <button type="button" onClick={() => { sigCanvas.current?.clear(); setErrors({...errors, signature: ''}); }}
-                  className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
-                  <RotateCcw className="w-3 h-3" />다시 쓰기
-                </button>
-              </div>
-              <div ref={sigContainerRef}
-                className={`border-2 border-dashed rounded-xl bg-white overflow-hidden relative ${errors.signature ? 'border-destructive' : 'border-border'}`}>
-                <SignatureCanvas ref={sigCanvas}
-                  canvasProps={{ className: 'w-full cursor-crosshair touch-none', style: { width: '100%', height: '200px' } }}
-                  backgroundColor="rgba(255,255,255,0)"
-                  onEnd={() => { if (errors.signature) setErrors({...errors, signature: ''}); }} />
-                <span className="absolute inset-0 flex items-center justify-center text-sm text-muted-foreground/40 pointer-events-none select-none">서명해주세요</span>
-              </div>
-              {errors.signature && <p className="text-xs text-destructive">{errors.signature}</p>}
-            </div>
-
-            <div className="bg-card rounded-xl shadow-card p-5 space-y-4">
-              <label className="text-sm font-semibold text-foreground">개인정보 수집 및 이용 동의 <span className="text-destructive">*</span></label>
-              <div className="bg-secondary/50 rounded-lg p-4 text-sm text-muted-foreground space-y-2">
-                <div><span className="font-medium text-foreground">수집 항목</span><p>이메일, 성함, 소속, 부서명, 직급{event?.show_car_number ? ', 차량번호' : ''}</p></div>
-                <div><span className="font-medium text-foreground">이용 목적</span><p>행사 참석 확인</p></div>
-                <div><span className="font-medium text-foreground">보유 기간</span><p className="text-primary font-medium">행사 종료 후 폐기</p></div>
-              </div>
-              <div className="flex items-center gap-2">
-                <Checkbox id="privacy" checked={form.privacy_agreed}
-                  onCheckedChange={(c) => updateField('privacy_agreed', !!c)} />
-                <label htmlFor="privacy" className="text-sm text-foreground cursor-pointer">위 내용에 동의합니다</label>
-              </div>
-              {errors.privacy_agreed && <p className="text-xs text-destructive">{errors.privacy_agreed}</p>}
-            </div>
-
-            <div className="flex gap-3">
-              <Button variant="outline" type="button" onClick={reset} className="h-14 rounded-xl"><ArrowLeft className="w-4 h-4" /></Button>
-              <Button type="submit" disabled={submitting} className="flex-1 h-14 text-base rounded-xl font-semibold">
-                {submitting ? <><Loader2 className="w-4 h-4 animate-spin mr-2" />등록 중...</> : '현장 등록 + 체크인'}
-              </Button>
-            </div>
-          </form>
-        )}
+          {errors.signature && <p className="text-xs text-destructive">{errors.signature}</p>}
+        </div>
+        <Button onClick={handleCheckinWithToken} disabled={submitting} className="w-full h-14 text-base rounded-xl font-semibold">
+          {submitting ? <><Loader2 className="w-4 h-4 animate-spin mr-2" />처리 중...</> : '참석 확인 완료'}
+        </Button>
       </div>
     </div>
   );
+
+  // ----- Walk-in form
+  if (screen === 'walkin' && event) return (
+    <div className="min-h-svh bg-muted/30 pb-8" translate="no">
+      <div className="bg-primary text-primary-foreground px-4 py-3 flex items-center gap-3">
+        <div className="w-10 h-10 rounded-lg bg-primary-foreground/20 flex items-center justify-center shrink-0"><Building2 className="w-6 h-6" /></div>
+        <span className="text-sm font-medium opacity-90">현장 참석 확인</span>
+      </div>
+      <div className="px-4 pt-5 max-w-lg mx-auto">
+        <div className="bg-card rounded-xl shadow-card overflow-hidden mb-5 animate-fade-in">
+          {event.poster_url && <img src={event.poster_url} alt="포스터" className="w-full max-h-56 object-contain bg-secondary/30" />}
+          <div className="p-5">
+            <h1 className="text-lg font-bold text-foreground leading-snug">{event.title}</h1>
+            <div className="mt-3 space-y-1.5 text-sm text-muted-foreground">
+              <div className="flex items-center gap-2"><Calendar className="w-4 h-4 text-primary shrink-0" /><span>{event.event_date}</span></div>
+              <div className="flex items-center gap-2"><Clock className="w-4 h-4 text-primary shrink-0" /><span>{event.start_time?.slice(0,5)} ~ {event.end_time?.slice(0,5)}</span></div>
+              <div className="flex items-center gap-2"><MapPin className="w-4 h-4 text-primary shrink-0" /><span>{event.location}</span></div>
+            </div>
+          </div>
+        </div>
+        <form onSubmit={handleWalkin} className="space-y-5" noValidate>
+          <div className="bg-primary/5 border border-primary/30 rounded-xl p-4 text-sm text-foreground animate-fade-in">
+            사전 신청 여부와 관계없이 정보를 입력하고 서명하시면 참석이 확인됩니다.<br />
+            <span className="text-xs text-muted-foreground">(사전 신청 시 사용한 이메일을 입력하면 자동으로 연결됩니다.)</span>
+          </div>
+          <div className="bg-card rounded-xl shadow-card p-5 space-y-5 animate-fade-in">
+            <div className="space-y-1.5">
+              <label className="text-sm font-semibold text-foreground">이메일 <span className="text-destructive">*</span></label>
+              <Input type="email" inputMode="email" autoComplete="email"
+                value={form.email} onChange={(e) => updateField('email', e.target.value)}
+                className={`h-12 bg-secondary/50 border-border/60 ${errors.email ? 'border-destructive' : ''}`} />
+              {errors.email && <p className="text-xs text-destructive">{errors.email}</p>}
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-semibold text-foreground">소속(구분) <span className="text-destructive">*</span></label>
+              <div className="flex gap-3">
+                {ORG_TYPES.map((t) => (
+                  <label key={t} className={`flex-1 text-center py-2.5 rounded-lg border-2 cursor-pointer text-sm font-medium transition-all ${
+                    form.org_type === t ? 'border-primary bg-primary/10 text-primary' : 'border-border bg-secondary/50 text-muted-foreground hover:border-primary/40'
+                  }`}>
+                    <input type="radio" name="org_type" value={t} checked={form.org_type === t}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        setForm((p) => ({ ...p, org_type: v, organization: v === '경기도' ? '경기도' : (p.org_type === '경기도' ? '' : p.organization) }));
+                        if (errors.org_type) setErrors({ ...errors, org_type: '' });
+                      }} className="sr-only" />{t}
+                  </label>
+                ))}
+              </div>
+              {errors.org_type && <p className="text-xs text-destructive">{errors.org_type}</p>}
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-semibold text-foreground">기관명 <span className="text-destructive">*</span></label>
+              <Input value={form.organization} onChange={(e) => updateField('organization', e.target.value)}
+                disabled={form.org_type === '경기도'}
+                placeholder={form.org_type === '경기도' ? '경기도 (자동 입력)' : '기관명을 입력해주세요'}
+                className={`h-12 bg-secondary/50 border-border/60 ${errors.organization ? 'border-destructive' : ''} ${form.org_type === '경기도' ? 'opacity-70' : ''}`} />
+              {errors.organization && <p className="text-xs text-destructive">{errors.organization}</p>}
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-semibold text-foreground">부서명 <span className="text-destructive">*</span></label>
+              <Input value={form.department} onChange={(e) => updateField('department', e.target.value)}
+                className={`h-12 bg-secondary/50 border-border/60 ${errors.department ? 'border-destructive' : ''}`} />
+              {errors.department && <p className="text-xs text-destructive">{errors.department}</p>}
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-semibold text-foreground">직급(위) <span className="text-destructive">*</span></label>
+              <Input value={form.position} onChange={(e) => updateField('position', e.target.value)}
+                className={`h-12 bg-secondary/50 border-border/60 ${errors.position ? 'border-destructive' : ''}`} />
+              {errors.position && <p className="text-xs text-destructive">{errors.position}</p>}
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-semibold text-foreground">성함 <span className="text-destructive">*</span></label>
+              <Input value={form.name} onChange={(e) => updateField('name', e.target.value)}
+                className={`h-12 bg-secondary/50 border-border/60 ${errors.name ? 'border-destructive' : ''}`} />
+              {errors.name && <p className="text-xs text-destructive">{errors.name}</p>}
+            </div>
+            {event.show_car_number && (
+              <div className="space-y-1.5">
+                <label className="text-sm font-semibold text-foreground">차량번호</label>
+                <Input value={form.car_number} onChange={(e) => updateField('car_number', e.target.value)}
+                  className="h-12 bg-secondary/50 border-border/60" />
+              </div>
+            )}
+          </div>
+          <div className="bg-card rounded-xl shadow-card p-5 space-y-3">
+            <div className="flex items-center justify-between">
+              <label className="text-sm font-semibold text-foreground">서명 <span className="text-destructive">*</span></label>
+              <button type="button" onClick={() => { sigCanvas.current?.clear(); setErrors({...errors, signature: ''}); }}
+                className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
+                <RotateCcw className="w-3 h-3" />다시 쓰기
+              </button>
+            </div>
+            <div ref={sigContainerRef}
+              className={`border-2 border-dashed rounded-xl bg-white overflow-hidden relative ${errors.signature ? 'border-destructive' : 'border-border'}`}>
+              <SignatureCanvas ref={sigCanvas}
+                canvasProps={{ className: 'w-full cursor-crosshair touch-none', style: { width: '100%', height: '200px' } }}
+                backgroundColor="rgba(255,255,255,0)"
+                onEnd={() => { if (errors.signature) setErrors({...errors, signature: ''}); }} />
+              <span className="absolute inset-0 flex items-center justify-center text-sm text-muted-foreground/40 pointer-events-none select-none">서명해주세요</span>
+            </div>
+            {errors.signature && <p className="text-xs text-destructive">{errors.signature}</p>}
+          </div>
+          <div className="bg-card rounded-xl shadow-card p-5 space-y-4">
+            <label className="text-sm font-semibold text-foreground">개인정보 수집 및 이용 동의 <span className="text-destructive">*</span></label>
+            <div className="bg-secondary/50 rounded-lg p-4 text-sm text-muted-foreground space-y-2">
+              <div><span className="font-medium text-foreground">수집 항목</span><p>이메일, 성함, 소속, 부서명, 직급{event.show_car_number ? ', 차량번호' : ''}, 서명</p></div>
+              <div><span className="font-medium text-foreground">이용 목적</span><p>행사 참석 확인</p></div>
+              <div><span className="font-medium text-foreground">보유 기간</span><p className="text-primary font-medium">행사 종료 후 폐기</p></div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Checkbox id="privacy" checked={form.privacy_agreed}
+                onCheckedChange={(c) => updateField('privacy_agreed', !!c)} />
+              <label htmlFor="privacy" className="text-sm text-foreground cursor-pointer">위 내용에 동의합니다</label>
+            </div>
+            {errors.privacy_agreed && <p className="text-xs text-destructive">{errors.privacy_agreed}</p>}
+          </div>
+          <Button type="submit" disabled={submitting} className="w-full h-14 text-base rounded-xl font-semibold">
+            {submitting ? <><Loader2 className="w-4 h-4 animate-spin mr-2" />처리 중...</> : '참석 확인 완료'}
+          </Button>
+        </form>
+      </div>
+    </div>
+  );
+
+  return null;
 };
 
 export default AttendancePage;
