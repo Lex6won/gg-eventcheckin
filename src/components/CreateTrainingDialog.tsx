@@ -47,6 +47,7 @@ const CreateTrainingDialog = ({ open, onOpenChange, onCreated }: Props) => {
     capacity_enabled: false,
     capacity: '',
     allow_waitlist: true,
+    recheck_enabled: false,
   });
 
   const handlePosterSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -69,7 +70,7 @@ const CreateTrainingDialog = ({ open, onOpenChange, onCreated }: Props) => {
     setForm({
       title: '', description: '', event_date: '', start_time: '', end_time: '',
       location: '', organizer: '', instructor: '', show_car_number: false,
-      capacity_enabled: false, capacity: '', allow_waitlist: true,
+      capacity_enabled: false, capacity: '', allow_waitlist: true, recheck_enabled: false,
     });
     removePoster();
   };
@@ -113,6 +114,7 @@ const CreateTrainingDialog = ({ open, onOpenChange, onCreated }: Props) => {
         capacity_enabled: form.capacity_enabled,
         capacity: form.capacity_enabled ? parseInt(form.capacity, 10) : null,
         allow_waitlist: form.capacity_enabled ? form.allow_waitlist : false,
+        recheck_enabled: form.recheck_enabled,
         poster_url,
         access_code: generateAccessCode(),
         created_by: user.id,
@@ -242,6 +244,18 @@ const CreateTrainingDialog = ({ open, onOpenChange, onCreated }: Props) => {
             <Switch
               checked={form.show_car_number}
               onCheckedChange={(checked) => setForm({ ...form, show_car_number: checked })}
+            />
+          </div>
+
+          {/* Recheck toggle */}
+          <div className="flex items-center justify-between rounded-lg border border-border p-3">
+            <div>
+              <p className="text-sm font-medium text-foreground">참석 재확인 받기</p>
+              <p className="text-xs text-muted-foreground">교육 종료 후 30분 이내 QR 재스캔으로 재확인</p>
+            </div>
+            <Switch
+              checked={form.recheck_enabled}
+              onCheckedChange={(checked) => setForm({ ...form, recheck_enabled: checked })}
             />
           </div>
 
