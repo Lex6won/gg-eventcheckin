@@ -45,6 +45,7 @@ const CreateEventDialog = ({ open, onOpenChange, onCreated }: CreateEventDialogP
     location: '',
     organizer: '',
     show_car_number: false,
+    recheck_enabled: false,
   });
 
   const handlePosterSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -99,7 +100,7 @@ const CreateEventDialog = ({ open, onOpenChange, onCreated }: CreateEventDialogP
 
       toast.success('행사가 생성되었습니다.');
       onOpenChange(false);
-      setForm({ title: '', description: '', event_date: '', start_time: '', end_time: '', location: '', organizer: '', show_car_number: false });
+      setForm({ title: '', description: '', event_date: '', start_time: '', end_time: '', location: '', organizer: '', show_car_number: false, recheck_enabled: false });
       removePoster();
       onCreated();
     } catch (err) {
@@ -192,6 +193,18 @@ const CreateEventDialog = ({ open, onOpenChange, onCreated }: CreateEventDialogP
             <Switch
               checked={form.show_car_number}
               onCheckedChange={(checked) => setForm({ ...form, show_car_number: checked })}
+            />
+          </div>
+
+          {/* Recheck toggle */}
+          <div className="flex items-center justify-between rounded-lg border border-border p-3">
+            <div>
+              <p className="text-sm font-medium text-foreground">참석 재확인 받기</p>
+              <p className="text-xs text-muted-foreground">행사 종료 후 30분 이내 QR 재스캔으로 재확인</p>
+            </div>
+            <Switch
+              checked={form.recheck_enabled}
+              onCheckedChange={(checked) => setForm({ ...form, recheck_enabled: checked })}
             />
           </div>
 
