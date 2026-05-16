@@ -6,6 +6,7 @@ interface AuthContextType {
   session: Session | null;
   user: User | null;
   loading: boolean;
+  roleLoading: boolean;
   isSuperAdmin: boolean;
   isAdmin: boolean;
   hasAdminAccess: boolean;
@@ -22,12 +23,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [roleLoading, setRoleLoading] = useState(false);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [approvalStatus, setApprovalStatus] = useState<'pending' | 'approved' | 'rejected' | null>(null);
   const [department, setDepartment] = useState<string | null>(null);
 
   const fetchRoleAndProfile = async (userId: string) => {
+    setRoleLoading(true);
     const [roleRes, profileRes] = await Promise.all([
       supabase.from('user_roles').select('role').eq('user_id', userId),
       supabase.from('profiles').select('department, approval_status').eq('user_id', userId).maybeSingle(),
@@ -41,6 +44,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       (profileRes.data as { approval_status?: string } | null)?.approval_status as
         'pending' | 'approved' | 'rejected' | undefined || 'pending'
     );
+    setRoleLoading(false);
   };
 
   useEffect(() => {
@@ -48,12 +52,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {
+        setRoleLoading(true);
         setTimeout(() => fetchRoleAndProfile(session.user.id), 0);
       } else {
         setIsSuperAdmin(false);
         setIsAdmin(false);
         setApprovalStatus(null);
         setDepartment(null);
+        setRoleLoading(false);
       }
       setLoading(false);
     });
@@ -62,6 +68,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {
+        setRoleLoading(true);
         fetchRoleAndProfile(session.user.id);
       }
       setLoading(false);
@@ -76,15 +83,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const signUp = async (email: string, password: string, dept: string) => {
-    const { data, error } = await supabase.auth.signUp({ email, password });
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: { data: { department: dept } },
+    });
     if (error) throw error;
-    // Save department to profile
-    if (data.user) {
-      await supabase.from('profiles').upsert({
-        user_id: data.user.id,
-        department: dept,
-      });
-    }
   };
 
   const signOut = async () => {
@@ -93,7 +97,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ session, user, loading, isSuperAdmin, isAdmin, hasAdminAccess: isAdmin || isSuperAdmin, approvalStatus, department, signIn, signUp, signOut }}>
+    <AuthContext.Provider value={{ session, user, loading, roleLoading, isSuperAdmin, isAdmin, hasAdminAccess: isAdmin || isSuperAdmin, approvalStatus, department, signIn, signUp, signOut }}>
       {children}
     </AuthContext.Provider>
   );
