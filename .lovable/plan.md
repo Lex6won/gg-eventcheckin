@@ -1,63 +1,147 @@
-# 서명 사라짐 오류 원인 분석
+## 최종 확정 계획
 
-## 핵심 원인
+**한 줄 요약**: 입력은 "최초 1회"만, 그 후엔 **QR 한 번 = 끝**. 이메일/6자리 코드 입력 화면은 전면 제거.
 
-`AttendancePage.tsx`와 `TrainingRegisterPage.tsx`의 `resizeCanvas` 함수 안에 다음 코드가 있습니다.
+---
 
-```ts
-const resizeCanvas = useCallback(() => {
-  if (sigCanvas.current && sigContainerRef.current) {
-    ...
-    canvas.width = container.offsetWidth * ratio;
-    canvas.height = 200 * ratio;
-    ...
-    sigCanvas.current.clear();   // ← 매 resize마다 서명을 지움
-  }
-}, []);
+## 두 가지 프로세스
 
-useEffect(() => {
-  ...
-  window.addEventListener('resize', resizeCanvas);
-}, [step, event, resizeCanvas]);
+```text
+[프로세스 1] 사전신청자
+사전신청 폼 (서명 X) → 토큰 발급/저장 → "신청 완료"
+   ↓ (행사 당일 같은 폰)
+QR 스캔 → 토큰 인식 → 바로 서명 → "참석확인 완료"
+   ↓ (재확인 시점, 같은 폰)
+QR 스캔 → 즉시 "참석 재확인 완료"
+
+[프로세스 2] 미신청자 (당일 본인 폰)
+QR 스캔 (토큰 없음) → 정보입력 + 서명 → 토큰 발급 → "참석확인 완료"
+   ↓ (재확인 시점, 같은 폰)
+QR 스캔 → 즉시 "참석 재확인 완료"
 ```
 
-즉 `window` 의 `resize` 이벤트가 발생할 때마다 캔버스 크기를 다시 잡고 **무조건 `clear()` 를 호출**합니다.
+폰을 바꾼 경우: 폰B에서 같은 이메일로 현장 폼을 제출하면 **사전신청 레코드를 자동 업그레이드**(서명 저장 + confirmed + 폰B에 토큰 재발급).
 
-## 왜 "특정 스마트폰"에서만 발생하는가
+---
 
-모바일 브라우저(특히 iOS Safari, 삼성 인터넷, 일부 안드로이드 Chrome)는 **사용자가 스크롤 할 때 주소창/하단 툴바가 자동으로 숨겨지거나 나타납니다**. 이때 viewport 높이가 바뀌면서 `window`의 `resize` 이벤트가 발생합니다.
+## 화면 분기 (`/training/:code`, `/attend/:code`)
 
-- 데스크톱: 스크롤해도 resize 이벤트 안 남 → 정상
-- 일부 안드로이드/구형 모델: 주소창이 고정되어 있어 resize 이벤트 안 남 → 정상
-- iOS Safari, 삼성 인터넷, 최신 Chrome on Android: 스크롤 시 resize 발생 → **서명 즉시 삭제**
+| phase | 토큰 | 참여 상태 | 화면 |
+|-------|------|----------|------|
+| open | 없음 | – | 사전신청 폼 (서명 없음) |
+| open | 있음 | registered | "이미 신청하셨습니다" + 본인 정보 |
+| in_progress | 있음 | registered | **서명 화면 직행** → "참석확인 완료" |
+| in_progress | 있음 | confirmed/walk_in, 재확인 토글 ON, 미재확인 | **즉시 "재확인 완료"** |
+| in_progress | 있음 | 위 + 재확인 완료 또는 토글 OFF | "모든 절차 완료" / "이미 참석확인됨" |
+| in_progress | 없음 | – | 현장 참석확인 폼 (정보+서명) |
+| closed, 종료 후 ≤ 30분 | 있음 | 미재확인 + 토글 ON | **즉시 "재확인 완료"** |
+| closed (그 외) | – | – | 종료 안내 |
 
-또한 키보드가 닫힐 때, 화면 회전, 핀치 줌 시에도 동일하게 발생합니다. 사용자가 "확인" 버튼을 누르려고 화면을 살짝 움직이는 순간 주소창이 다시 내려오며 resize → clear 가 트리거됩니다.
+---
 
-## 부가 요인
+## 서명 / 토큰 시점
 
-1. `canvas.width/height` 를 다시 할당하는 것 자체가 캔버스를 비우는 동작입니다 (HTML5 canvas 표준). 따라서 `clear()` 를 빼더라도 width/height 재설정만으로 그림은 사라집니다.
-2. `useEffect` 의존성에 `resizeCanvas` 가 들어가 있고 `step/event` 가 바뀔 때마다 핸들러를 재등록하지만, 이는 본 버그와는 무관합니다.
-3. step 진입 시 `setTimeout(resizeCanvas, 100)` 으로 초기 1회 리사이즈하는 부분은 유지해도 문제 없습니다 (서명 그리기 전이므로).
+| 단계 | 토큰 | 서명 |
+|------|------|------|
+| 사전신청 | 발급 | ✗ |
+| 최초 참석확인 (사전신청자) | 검증 | ✓ |
+| 최초 참석확인 (현장) | 발급 | ✓ |
+| 참석 재확인 (행사 종료 +30분까지) | 검증 | ✗ |
 
-## 수정 방향
+---
 
-핵심 원칙: **사용자가 그리기 시작한 이후에는 캔버스 크기를 다시 잡지 않는다.**
+## 디바이스 토큰
 
-1. `resizeCanvas` 안에서 무조건 `clear()` 하지 않고, 다음과 같이 보호:
-   - 이미 서명이 그려진 상태(`!sigCanvas.current.isEmpty()`)면 resize를 건너뛴다.
-   - 또는 캔버스의 컨테이너 width 가 실제로 바뀌었을 때만 다시 잡는다 (높이 변화는 무시).
-2. `window.addEventListener('resize', ...)` 를 그대로 두는 대신, `ResizeObserver` 로 컨테이너 width 변화만 감지하도록 변경. 모바일 주소창 표시/숨김은 width 를 바꾸지 않으므로 자연스럽게 무시됩니다.
-3. 그래도 width 가 바뀌어 다시 그려야 한다면, 기존 서명을 `toDataURL` 로 저장 → resize 후 `fromDataURL` 로 복원해 사용자 입력을 보존.
+- `attendees.device_token text unique`, `trainees.device_token text unique` (32바이트 base64url)
+- `localStorage["device_token:event:<id>"]` / `device_token:training:<id>"` 에 저장
+- QR 진입 시 토큰이 있으면 RPC에 함께 전송 → 본인 매칭
 
-## 적용 파일
+---
 
-- `src/pages/AttendancePage.tsx`
-- `src/pages/TrainingRegisterPage.tsx`
+## DB 마이그레이션
 
-(`RegisterPage.tsx` 는 SignatureCanvas 를 직접 사용하지 않고 `p_signature_url: ''` 로 빈 값만 보내므로 수정 대상 아님.)
+```sql
+-- 컬럼 추가
+ALTER TABLE attendees
+  ADD COLUMN device_token text UNIQUE,
+  ADD COLUMN rechecked_at timestamptz;
+ALTER TABLE trainees
+  ADD COLUMN device_token text UNIQUE,
+  ADD COLUMN rechecked_at timestamptz,
+  ALTER COLUMN signature_url DROP NOT NULL;
+ALTER TABLE events    ADD COLUMN recheck_enabled boolean NOT NULL DEFAULT false;
+ALTER TABLE trainings ADD COLUMN recheck_enabled boolean NOT NULL DEFAULT false;
+```
 
-## 기대 효과
+**가드 함수 신규**: `_assert_event_open_for_recheck(p_event_id)` — 종료 시각 + 30분까지 허용, `recheck_enabled = true` 검사. 교육도 동일.
 
-- iOS Safari, 삼성 인터넷에서 스크롤/주소창 토글로 서명이 사라지는 현상 제거
-- 화면 회전/키보드 토글 시에도 그린 서명 보존
-- 데스크톱·태블릿 동작에는 영향 없음
+---
+
+## RPC 변경
+
+**수정**
+- `register_attendee_pre`, `register_trainee`
+  - `p_signature_url` 파라미터 제거, 서명 검증 제거
+  - 토큰 발급 후 반환값에 `device_token` 포함
+
+**신규**
+- `device_checkin_attendee(p_event_id, p_device_token, p_signature_url)`
+  - 토큰 매칭 → `registered`에서만 서명 저장 + `checked_in`
+- `device_checkin_trainee(...)` 동일
+- `walk_in_attendee_self(p_event_id, p_email, ..., p_signature_url, p_privacy_agreed)`
+  - 같은 이메일의 사전신청(`registered`) 레코드 있으면 → 업그레이드 (`checked_in` + 서명 + 토큰 재발급)
+  - 없으면 새 `walk_in` 레코드 + 토큰 발급
+  - 반환값에 `device_token`
+- `walk_in_trainee_self(...)` 동일
+- `device_recheck_attendee(p_event_id, p_device_token)` / `device_recheck_trainee(...)`
+  - `_assert_*_open_for_recheck` 통과 + 토큰 매칭 + `checked_in`/`confirmed`/`walk_in` + 미재확인 → `rechecked_at = now()`
+
+**DROP**
+- `checkin_attendee`, `checkin_trainee` (이메일/코드 입력 경로)
+- `walk_in_attendee`, `walk_in_trainee` (관리자 키오스크용)
+- `lookup_attendee`, `lookup_trainee` (검색 UI 제거)
+
+---
+
+## 프론트엔드 변경
+
+**삭제**
+- `src/pages/AdminEventCheckin.tsx`, `src/pages/AdminTrainingCheckin.tsx`
+- `src/hooks/useKioskIdleLogout.ts`
+- `App.tsx` 라우트 `/admin/events/:eventId/checkin`, `/admin/trainings/:trainingId/checkin`
+- 이벤트/교육 카드·상세의 "현장 등록 모드" 진입 버튼
+
+**수정**
+- `RegisterPage.tsx`(사전신청): 서명 UI/로직 제거, 응답 토큰 localStorage 저장
+- `TrainingRegisterPage.tsx` / `AttendancePage.tsx`:
+  - phase × 토큰 자동 분기
+  - 토큰 있음 + registered → 서명 화면 직행
+  - 토큰 있음 + confirmed/walk_in + 토글 ON + 미재확인 → 자동 재확인 호출 + 완료 화면
+  - 토큰 없음 + in_progress → 현장 참석확인 폼 (정보+서명)
+  - 이메일/6자리 코드 입력 UI 완전 제거
+  - 폼 제출 응답의 `device_token` localStorage 저장
+- `CreateEventDialog.tsx` / `CreateTrainingDialog.tsx`: "참석 재확인 받기" 토글 추가
+- 참석자 목록/상세(`AdminEventAttendees`, `AdminTrainingTrainees`, `AdminAttendees`): "재확인 시각" 컬럼 + 통계 카드
+- `exportAttendees.ts`: "재확인 시각" 1열 추가
+
+---
+
+## 보안 / 검토
+
+- 토큰은 32바이트 임의값, 단독으로 참석확인 불가(서명 단계 별도)
+- 재확인은 토큰만으로 가능하지만 이미 서명한 사람만 대상 + 종료 +30분 한정 → 피해 표면 작음
+- 사전신청자 자동 업그레이드는 같은 이메일 + 본인 폰 입력 → 본인 확인 수준 충분
+- 모든 새 RPC는 SECURITY DEFINER, 서명 받는 RPC는 길이 200,000 제한 유지
+
+---
+
+## 작업 순서
+
+1. DB 마이그레이션 (컬럼 + 가드 함수 + RPC 신규/수정/DROP)
+2. 사전신청·참석 페이지 리팩토링 (서명/이메일 입력 제거, 토큰 흐름)
+3. 관리자 키오스크 페이지/라우트/진입 버튼 제거
+4. 생성 다이얼로그 재확인 토글 추가
+5. 참석자 목록·통계·Export에 재확인 시각 반영
+6. README/도움말 문구 정리
+
+승인하시면 마이그레이션부터 실행합니다.
