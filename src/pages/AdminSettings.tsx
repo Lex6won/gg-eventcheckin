@@ -3,6 +3,8 @@ import { useAuth } from '@/lib/auth';
 import { supabase } from '@/integrations/supabase/client';
 import { User, Shield, Users, Loader2, Check, X, Trash2, ArrowUp, ArrowDown, UserMinus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import {
   AlertDialog,
@@ -45,6 +47,8 @@ const AdminSettings = () => {
   const [loading, setLoading] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<ConfirmAction>(null);
+  const [rejectTarget, setRejectTarget] = useState<AdminUser | null>(null);
+  const [rejectReason, setRejectReason] = useState('');
 
   const fetchAdmins = useCallback(async () => {
     if (!isSuperAdmin) return;
@@ -131,11 +135,7 @@ const AdminSettings = () => {
                       <Check className="w-4 h-4 mr-1" />승인
                     </Button>
                     <Button size="sm" variant="outline" disabled={busyId === a.user_id}
-                      onClick={() => setConfirm({
-                        title: '가입 신청 거절',
-                        description: `${a.email} 계정의 가입을 거절하시겠습니까?`,
-                        onConfirm: () => runRpc('reject_admin', a.user_id, '거절되었습니다.'),
-                      })}>
+                      onClick={() => { setRejectTarget(a); setRejectReason(''); }}>
                       <X className="w-4 h-4 mr-1" />거절
                     </Button>
                   </AdminRow>
@@ -260,6 +260,39 @@ const AdminSettings = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog open={!!rejectTarget} onOpenChange={(o) => !o && setRejectTarget(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>가입 신청 거절</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              {rejectTarget?.email} 계정의 가입을 거절합니다. 사유를 입력해주세요 (선택).
+            </p>
+            <Textarea
+              value={rejectReason}
+              onChange={(e) => setRejectReason(e.target.value)}
+              placeholder="거절 사유"
+              rows={3}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRejectTarget(null)}>취소</Button>
+            <Button
+              variant="destructive"
+              onClick={async () => {
+                const target = rejectTarget;
+                const reason = rejectReason.trim();
+                setRejectTarget(null);
+                if (target) await runRpc('reject_admin', target.user_id, '거절되었습니다.', reason || undefined);
+              }}
+            >
+              거절
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

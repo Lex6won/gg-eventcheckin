@@ -14,7 +14,7 @@ const navItems = [
 ];
 
 const AdminLayout = () => {
-  const { user, loading, signOut, isSuperAdmin, department, hasAdminAccess } = useAuth();
+  const { user, loading, roleLoading, signOut, isSuperAdmin, department, hasAdminAccess } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const isMobile = useIsMobile();
@@ -36,7 +36,7 @@ const AdminLayout = () => {
     navigate('/admin/login');
   };
 
-  if (loading) {
+  if (loading || (user && roleLoading)) {
     return (
       <div className="min-h-svh bg-background flex items-center justify-center">
         <Loader2 className="w-8 h-8 animate-spin text-primary" />
