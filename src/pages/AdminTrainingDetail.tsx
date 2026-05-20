@@ -339,7 +339,7 @@ const AdminTrainingDetail = () => {
   }
 
   const cap = training.capacity ?? 0;
-  const pct = training.capacity_enabled && cap > 0 ? Math.min(100, Math.round((counts.confirmed / cap) * 100)) : 0;
+  const pct = training.capacity_enabled && cap > 0 ? Math.min(100, Math.round((counts.preRegistered / cap) * 100)) : 0;
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-6 space-y-5">
@@ -490,7 +490,7 @@ const AdminTrainingDetail = () => {
       {training.capacity_enabled && (
         <div className="bg-card rounded-xl shadow-sm border border-border/50 p-5 space-y-3">
           <div className="flex items-baseline justify-between text-sm">
-            <span className="text-foreground font-medium">확정 {counts.confirmed} / 정원 {cap}명 ({pct}%)</span>
+            <span className="text-foreground font-medium">사전신청 {counts.preRegistered} / 정원 {cap}명 ({pct}%)</span>
             <span className="text-muted-foreground">대기 {counts.waitlisted}명</span>
           </div>
           <div className="h-3 bg-secondary rounded-full overflow-hidden">
