@@ -102,6 +102,7 @@ const AdminTrainingDetail = () => {
 
   const counts = useMemo(() => ({
     confirmed: trainees.filter((t) => t.status === 'confirmed').length,
+    preRegistered: trainees.filter((t) => t.status === 'registered' || t.status === 'confirmed').length,
     waitlisted: trainees.filter((t) => t.status === 'waitlisted').length,
     cancelled: trainees.filter((t) => t.status === 'cancelled').length,
   }), [trainees]);
@@ -122,7 +123,7 @@ const AdminTrainingDetail = () => {
   );
   // 미참석 = 사전신청 확정인데 서명 없음
   const noShowCount = useMemo(
-    () => trainees.filter((t) => t.status === 'confirmed' && !t.signature_url).length,
+    () => trainees.filter((t) => (t.status === 'confirmed' || t.status === 'registered') && !t.signature_url).length,
     [trainees]
   );
 
