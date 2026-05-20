@@ -33,7 +33,7 @@ const generateAccessCode = () => {
 };
 
 const AdminEvents = () => {
-  const { user, isSuperAdmin } = useAuth();
+  const { user, isSuperAdmin, roleLoading } = useAuth();
   const navigate = useNavigate();
   const [events, setEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
@@ -73,8 +73,8 @@ const AdminEvents = () => {
   };
 
   useEffect(() => {
-    if (user) fetchEvents();
-  }, [user, isSuperAdmin]);
+    if (user && !roleLoading) fetchEvents();
+  }, [user, isSuperAdmin, roleLoading]);
 
   const handleDuplicate = async (event: Event) => {
     if (!user) return;

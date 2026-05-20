@@ -38,7 +38,7 @@ const generateAccessCode = () => {
 };
 
 const AdminTrainings = () => {
-  const { user, isSuperAdmin } = useAuth();
+  const { user, isSuperAdmin, roleLoading } = useAuth();
   const navigate = useNavigate();
   const [trainings, setTrainings] = useState<Training[]>([]);
   const [loading, setLoading] = useState(true);
@@ -66,7 +66,9 @@ const AdminTrainings = () => {
     setLoading(false);
   };
 
-  useEffect(() => { if (user) fetchTrainings(); }, [user, isSuperAdmin]);
+  useEffect(() => {
+    if (user && !roleLoading) fetchTrainings();
+  }, [user, isSuperAdmin, roleLoading]);
 
   const handleDuplicate = async (t: Training) => {
     if (!user) return;

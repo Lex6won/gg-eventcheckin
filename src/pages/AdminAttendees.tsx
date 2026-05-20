@@ -22,7 +22,7 @@ interface AttendeeRow {
 }
 
 const AdminAttendees = () => {
-  const { user, isSuperAdmin } = useAuth();
+  const { user, isSuperAdmin, roleLoading } = useAuth();
   const [attendees, setAttendees] = useState<AttendeeRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -76,8 +76,8 @@ const AdminAttendees = () => {
       setAttendees(rows);
       setLoading(false);
     };
-    if (user) fetch();
-  }, [user, isSuperAdmin]);
+    if (user && !roleLoading) fetch();
+  }, [user, isSuperAdmin, roleLoading]);
 
   const filtered = useMemo(() => {
     let result = attendees;
