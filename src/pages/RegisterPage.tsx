@@ -80,10 +80,10 @@ const RegisterPage = () => {
       setKind('training');
       setData(t as CommonData);
       if (t.status === '완료') { setExpired(true); setLoading(false); return; }
-      const { count } = await supabase.from('trainees').select('*', { count: 'exact', head: true })
-        .eq('training_id', t.id).in('status', ['confirmed','registered']);
-      setRegisteredCount(count ?? 0);
-      if (t.capacity_enabled && t.capacity != null && (count ?? 0) >= t.capacity && !t.allow_waitlist) setClosed(true);
+      const { data: cnt } = await supabase.rpc('count_trainees_registered', { p_training_id: t.id });
+      const count = (cnt as number) ?? 0;
+      setRegisteredCount(count);
+      if (t.capacity_enabled && t.capacity != null && count >= t.capacity && !t.allow_waitlist) setClosed(true);
       setLoading(false);
       return;
     }
