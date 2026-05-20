@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { createContext, useContext, useEffect, useRef, useState, ReactNode } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -29,12 +29,22 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [approvalStatus, setApprovalStatus] = useState<'pending' | 'approved' | 'rejected' | null>(null);
   const [department, setDepartment] = useState<string | null>(null);
 
+  // Track which userId we've fetched role/profile for, to avoid duplicates
+  // across getSession() + onAuthStateChange + TOKEN_REFRESHED events.
+  const loadedUserIdRef = useRef<string | null>(null);
+  const inFlightUserIdRef = useRef<string | null>(null);
+
   const fetchRoleAndProfile = async (userId: string) => {
-    setRoleLoading(true);
+    if (inFlightUserIdRef.current === userId || loadedUserIdRef.current === userId) return;
+    inFlightUserIdRef.current = userId;
+    // Only show role spinner on the very first load for this user
+    if (loadedUserIdRef.current !== userId) setRoleLoading(true);
     const [roleRes, profileRes] = await Promise.all([
       supabase.from('user_roles').select('role').eq('user_id', userId),
       supabase.from('profiles').select('department, approval_status').eq('user_id', userId).maybeSingle(),
     ]);
+    // Bail if user changed mid-flight
+    if (inFlightUserIdRef.current !== userId) return;
 
     const roles = roleRes.data?.map(r => r.role) || [];
     setIsSuperAdmin(roles.includes('super_admin'));
@@ -44,17 +54,24 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       (profileRes.data as { approval_status?: string } | null)?.approval_status as
         'pending' | 'approved' | 'rejected' | undefined || 'pending'
     );
+    loadedUserIdRef.current = userId;
+    inFlightUserIdRef.current = null;
     setRoleLoading(false);
   };
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const handleSession = (session: Session | null) => {
       setSession(session);
       setUser(session?.user ?? null);
-      if (session?.user) {
-        setRoleLoading(true);
-        setTimeout(() => fetchRoleAndProfile(session.user.id), 0);
+      const uid = session?.user?.id ?? null;
+      if (uid) {
+        if (loadedUserIdRef.current !== uid && inFlightUserIdRef.current !== uid) {
+          // Defer to avoid running supabase calls inside the auth callback
+          setTimeout(() => fetchRoleAndProfile(uid), 0);
+        }
       } else {
+        loadedUserIdRef.current = null;
+        inFlightUserIdRef.current = null;
         setIsSuperAdmin(false);
         setIsAdmin(false);
         setApprovalStatus(null);
@@ -62,17 +79,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setRoleLoading(false);
       }
       setLoading(false);
+    };
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      handleSession(session);
     });
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        setRoleLoading(true);
-        fetchRoleAndProfile(session.user.id);
-      }
-      setLoading(false);
-    });
+    supabase.auth.getSession().then(({ data: { session } }) => handleSession(session));
 
     return () => subscription.unsubscribe();
   }, []);
