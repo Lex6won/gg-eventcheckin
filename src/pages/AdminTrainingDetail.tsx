@@ -717,7 +717,7 @@ const AdminTrainingDetail = () => {
                 <div className="space-y-2">
                   <h3 className="text-xs font-semibold text-foreground">정원 충원율</h3>
                   <div className="flex items-baseline justify-between text-xs text-muted-foreground">
-                    <span>{counts.confirmed} / {cap}명</span>
+                    <span>{counts.preRegistered} / {cap}명</span>
                     <span>{pct}%</span>
                   </div>
                   <div className="h-3 bg-secondary rounded-full overflow-hidden">
