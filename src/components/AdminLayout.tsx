@@ -36,7 +36,9 @@ const AdminLayout = () => {
     navigate('/admin/login');
   };
 
-  if (loading || (user && roleLoading)) {
+  // Only block on initial auth load. roleLoading happens in background
+  // (refresh / token rotation) and must not blank the admin UI.
+  if (loading) {
     return (
       <div className="min-h-svh bg-background flex items-center justify-center">
         <Loader2 className="w-8 h-8 animate-spin text-primary" />
@@ -45,6 +47,16 @@ const AdminLayout = () => {
   }
 
   if (!user) return null;
+
+  // Wait for the very first role fetch before deciding pending vs admin,
+  // otherwise users briefly see the "approval pending" screen on load.
+  if (roleLoading && !hasAdminAccess) {
+    return (
+      <div className="min-h-svh bg-background flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   if (!hasAdminAccess) {
     return <AdminPendingApproval />;
