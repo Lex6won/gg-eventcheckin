@@ -416,6 +416,10 @@ export type Database = {
       _gen_device_token: { Args: never; Returns: string }
       approve_admin: { Args: { p_user_id: string }; Returns: undefined }
       auto_transition_event_statuses: { Args: never; Returns: undefined }
+      count_trainees_registered: {
+        Args: { p_training_id: string }
+        Returns: number
+      }
       delete_admin_user: { Args: { p_user_id: string }; Returns: undefined }
       demote_super_admin: { Args: { p_user_id: string }; Returns: undefined }
       device_checkin_attendee: {
