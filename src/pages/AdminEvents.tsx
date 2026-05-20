@@ -58,15 +58,21 @@ const AdminEvents = () => {
       return;
     }
 
-    const eventsWithCounts = await Promise.all(
-      (data || []).map(async (event) => {
-        const { count } = await supabase
-          .from('attendees')
-          .select('*', { count: 'exact', head: true })
-          .eq('event_id', event.id);
-        return { ...event, attendee_count: count ?? 0 };
-      })
-    );
+    const ids = (data || []).map((e) => e.id);
+    const countMap = new Map<string, number>();
+    if (ids.length > 0) {
+      const { data: rows } = await supabase
+        .from('attendees')
+        .select('event_id')
+        .in('event_id', ids);
+      (rows || []).forEach((r: { event_id: string }) => {
+        countMap.set(r.event_id, (countMap.get(r.event_id) || 0) + 1);
+      });
+    }
+    const eventsWithCounts = (data || []).map((event) => ({
+      ...event,
+      attendee_count: countMap.get(event.id) ?? 0,
+    }));
 
     setEvents(eventsWithCounts);
     setLoading(false);
