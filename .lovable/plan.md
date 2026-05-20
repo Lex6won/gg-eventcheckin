@@ -1,77 +1,115 @@
-# 승인 시스템 검토 결과
+## 분석 결과
 
-DB 스키마 / RPC / 라우팅을 점검했습니다. **치명적 버그는 없으나** 사용자 경험과 데이터 일관성에 영향을 주는 **3건의 명확한 문제**를 발견했습니다.
+관리자 화면이 깜빡이고 끊기는 주된 원인은 3가지입니다.
 
----
+### 1. 인증/권한 조회가 중복 실행됨
+`AuthProvider`에서 로그인 세션을 확인하는 흐름이 `onAuthStateChange`와 `getSession()` 양쪽에서 동시에 실행되고 있습니다.
 
-## 🔴 P1 — 가입 시 부서명이 저장되지 않음 (기존 버그)
+현재 브라우저 네트워크 기록에서도 관리자 화면 진입 직후 다음 요청이 3세트 반복됩니다.
 
-### 현상
-이메일 인증을 켠 상태에서 `signUp()`이 호출되면 Supabase는 `data.user`만 반환하고 **세션은 만들지 않습니다**. 이 상태에서 클라이언트가:
-
-```ts
-await supabase.from('profiles').upsert({ user_id, department });
+```text
+user_roles 조회 3회
+profiles 조회 3회
+각 요청 1.0초 ~ 2.0초 소요
 ```
 
-를 실행하면 `auth.uid()`가 NULL이라 RLS의 `user_id = auth.uid()` INSERT/UPDATE 정책이 막아 **조용히 실패**합니다. 결과적으로:
-- `handle_new_user_profile` 트리거가 만든 profile은 그대로 남고 (`approval_status='pending'`, `department=NULL`)
-- 가입 폼에 입력한 부서명은 사라짐 → 전체관리자가 승인 화면에서 "부서 미설정"만 보게 됨
+이때 `roleLoading`이 여러 번 `true/false`로 바뀌고, `AdminLayout`은 `roleLoading=true`일 때 전체 관리자 화면을 스피너로 교체합니다. 그래서 화면 전체가 잠깐 사라졌다가 다시 나타나는 깜빡임이 발생합니다.
 
-### 해결
-가입 시 부서명을 `auth.signUp({ options: { data: { department } } })`로 전달하고, `handle_new_user_profile` 트리거에서 `NEW.raw_user_meta_data->>'department'`를 읽어 profile에 함께 INSERT하도록 변경.
+### 2. 권한 확정 전 데이터 목록을 먼저 가져옴
+`AdminEvents`, `AdminTrainings`, `AdminAttendees`가 `isSuperAdmin`이 아직 확정되기 전에 데이터를 조회합니다.
 
----
+초기값은 `isSuperAdmin=false`라서 처음에는 부서관리자 기준으로 조회했다가, 전체관리자 권한이 확인되면 다시 전체 목록으로 재조회합니다.
 
-## 🟡 P2 — 승인된 관리자가 1순간 "승인 대기" 화면을 본다 (race)
+결과적으로:
 
-### 현상
-`AuthProvider`의 흐름:
-1. `getSession()` → 세션 즉시 셋 + `loading=false`
-2. `fetchRoleAndProfile()`은 `setTimeout(0)`로 비동기 실행 → 직후 한 틱은 `isAdmin=false`
+```text
+로딩 → 일부 목록 표시 → 권한 확인 → 전체 목록 재조회 → 화면 갱신
+```
 
-`AdminLayout`이 `loading=false && user && !hasAdminAccess` 조건이면 곧바로 `<AdminPendingApproval />`을 렌더 → 페이지 전환마다 또는 새로고침 직후 **승인 대기 화면이 깜빡**.
+이 흐름이 깜빡임처럼 보입니다.
 
-### 해결
-`AuthProvider`에 `roleLoading` 상태 추가. `fetchRoleAndProfile` 시작 시 true, 끝나면 false. `AdminLayout`은 `loading || (user && roleLoading)`을 함께 체크.
+### 3. 관리자 앱이 처음부터 무거운 라이브러리를 한꺼번에 로드함
+현재 `App.tsx`가 모든 관리자 페이지를 정적 import하고 있습니다. 그래서 `/admin/trainings` 목록만 볼 때도 상세 페이지에서만 필요한 무거운 라이브러리가 같이 로드됩니다.
 
----
+성능 측정 결과 초기 로드에 큰 영향을 주는 파일:
 
-## 🟡 P3 — "거절" 시 사유 입력 UI 없음
+```text
+exceljs      약 289KB, 1.65초
+recharts     약 214KB, 1.70초
+jspdf        약 165KB, 1.53초
+lucide-react 약 157KB, 1.44초
+```
 
-### 현상
-`AdminSettings`의 거절 다이얼로그는 사유 입력 필드가 없어 항상 `p_reason=null`로 호출됨. DB에는 `rejected_reason` 컬럼이 있지만 절대 채워지지 않음.
+측정된 초기 렌더링도 느립니다.
 
-### 해결
-거절 다이얼로그를 별도 컴포넌트로 분리, `<Textarea>` 추가 후 `reject_admin(p_user_id, reason)` 호출.
+```text
+First Contentful Paint: 약 7.5초
+DOM Content Loaded: 약 7.4초
+```
 
----
+즉, 깜빡임은 인증 상태 중복 갱신 문제이고, 끊김/느림은 초기 번들 과다 로드와 목록 조회 방식이 함께 만든 현상입니다.
 
-## ✅ 검증 완료 — 문제 없음
+## 수정 계획
 
-- **유니크 제약**: `profiles.user_id`, `user_roles(user_id, role)` 모두 존재 → ON CONFLICT 정상 동작
-- **RLS**: events/trainings/attendees/trainees 모두 `created_by` OR `super_admin` 기반 — 권한 회수 즉시 차단됨
-- **RPC 권한 체크**: 모든 새 RPC 시작부에 `has_role(auth.uid(), 'super_admin')` 가드 + `Forbidden` 에러
-- **마지막 super_admin 보호**: `demote_super_admin`, `delete_admin_user` 모두 `count(*) <= 1` 차단
-- **본인 보호**: revoke/promote/demote/delete 모두 `p_user_id = auth.uid()` 차단 또는 UI에서 버튼 숨김
-- **삭제 시 데이터 보호**: 등록한 events/trainings 있으면 `delete_admin_user` 거부
-- **백필**: 기존 admin 보유자는 모두 `approved`로 백필 → 서비스 중단 없음
-- **PendingApproval 게이트**: 미승인 사용자는 모든 `/admin/*` 라우트에서 차단됨
+### 1. 인증/권한 로딩 안정화
+`src/lib/auth.tsx`를 정리합니다.
 
----
+- 세션 처리 함수를 하나로 통합
+- 같은 사용자에 대한 `user_roles`, `profiles` 중복 조회 방지
+- 늦게 도착한 이전 요청이 최신 상태를 덮어쓰지 않도록 요청 순서 가드 추가
+- 이미 권한 정보가 확정된 상태에서는 `roleLoading` 때문에 관리자 레이아웃 전체가 다시 스피너로 바뀌지 않게 조정
 
-## 추가 권장 (선택)
+### 2. 관리자 레이아웃 깜빡임 제거
+`src/components/AdminLayout.tsx`를 조정합니다.
 
-- `revoke_admin`이 super_admin 역할은 건드리지 않음 → super_admin에게 "회수" 버튼이 노출되지 않도록 UI에서 이미 제한 중. 이중 보호로 RPC에서도 super_admin이면 에러 던지도록 하면 더 안전.
-- `delete_admin_user`가 등록 데이터 있으면 차단하는데, 메시지에서 "행사/교육"만 언급. attendees/trainees는 자동으로 events/trainings에 묶이므로 OK.
+- 최초 인증/권한 확인 때만 전체 화면 로딩 표시
+- 권한 정보가 이미 있는 상태의 재검증은 화면 전체를 언마운트하지 않음
+- 승인 대기 화면으로 잘못 순간 이동하는 현상 방지
 
----
+### 3. 관리자 목록 화면의 중복 조회 방지
+다음 화면에서 권한 확정 후에만 데이터를 조회하도록 수정합니다.
 
-## 적용 범위
+- `src/pages/AdminEvents.tsx`
+- `src/pages/AdminTrainings.tsx`
+- `src/pages/AdminAttendees.tsx`
+- 필요 시 `src/pages/AdminSettings.tsx`
 
-수정 시 변경될 파일:
-- (신규 마이그레이션) `handle_new_user_profile` 트리거에서 메타데이터 → department 자동 저장
-- `src/lib/auth.tsx` — `roleLoading` 상태 + `signUp`에 `options.data.department` 전달, 클라이언트 upsert 제거
-- `src/components/AdminLayout.tsx` — `roleLoading` 반영
-- `src/pages/AdminSettings.tsx` — 거절 사유 입력 UI
+특히 전체관리자는 `isSuperAdmin=false` 초기값으로 먼저 조회하지 않도록 막습니다.
 
-진행해도 될까요?
+### 4. 목록 카운트 조회 최적화
+`AdminEvents`, `AdminTrainings`의 N+1 조회를 줄입니다.
+
+현재 구조:
+
+```text
+교육 목록 1회 조회
+교육별 confirmed count 조회
+교육별 waitlisted count 조회
+```
+
+교육/행사가 늘어나면 요청 수가 급증합니다.
+
+개선 구조:
+
+```text
+목록 1회 조회
+관련 참석자/교육생 상태 1회 조회
+프론트에서 training_id/event_id별 count 집계
+```
+
+이렇게 하면 목록 화면에서 체감 끊김이 줄어듭니다.
+
+### 5. 무거운 페이지/라이브러리 지연 로딩
+`src/App.tsx`를 React lazy loading 구조로 바꿉니다.
+
+- 현재 들어온 관리자 화면에 필요한 페이지만 로드
+- 상세/통계/엑셀/PDF 관련 라이브러리는 해당 기능을 열거나 다운로드할 때만 로드
+- `/admin/trainings` 목록 진입 시 `exceljs`, `jspdf`, `recharts`가 즉시 로드되지 않도록 분리
+
+### 6. 검증
+수정 후 다음을 확인합니다.
+
+- 관리자 화면 진입 시 `user_roles`, `profiles` 요청이 1세트만 발생하는지
+- 전체관리자 계정에서 목록이 “일부 → 전체”로 바뀌며 깜빡이지 않는지
+- `/admin/trainings` 초기 진입 시간이 줄었는지
+- 교육 생성/수정 후 목록으로 돌아올 때 화면 전체가 끊기지 않는지

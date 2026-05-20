@@ -1,28 +1,37 @@
+import { lazy, Suspense } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Route, Routes, Navigate } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/lib/auth";
+import { Loader2 } from "lucide-react";
 import Index from "./pages/Index";
-import AttendancePage from "./pages/AttendancePage";
 import AdminLogin from "./pages/AdminLogin";
 import AdminLayout from "./components/AdminLayout";
-import AdminEvents from "./pages/AdminEvents";
-import AdminEventDetail from "./pages/AdminEventDetail";
-import AdminEventAttendees from "./pages/AdminEventAttendees";
-import AdminAttendees from "./pages/AdminAttendees";
-import AdminSettings from "./pages/AdminSettings";
-import AdminEventQR from "./pages/AdminEventQR";
-import AdminTrainings from "./pages/AdminTrainings";
-import AdminTrainingDetail from "./pages/AdminTrainingDetail";
-import AdminTrainingTrainees from "./pages/AdminTrainingTrainees";
-import AdminTrainingQR from "./pages/AdminTrainingQR";
-import TrainingRegisterPage from "./pages/TrainingRegisterPage";
-import RegisterPage from "./pages/RegisterPage";
-import NotFound from "./pages/NotFound";
+
+const AttendancePage = lazy(() => import("./pages/AttendancePage"));
+const AdminEvents = lazy(() => import("./pages/AdminEvents"));
+const AdminEventDetail = lazy(() => import("./pages/AdminEventDetail"));
+const AdminEventAttendees = lazy(() => import("./pages/AdminEventAttendees"));
+const AdminAttendees = lazy(() => import("./pages/AdminAttendees"));
+const AdminSettings = lazy(() => import("./pages/AdminSettings"));
+const AdminEventQR = lazy(() => import("./pages/AdminEventQR"));
+const AdminTrainings = lazy(() => import("./pages/AdminTrainings"));
+const AdminTrainingDetail = lazy(() => import("./pages/AdminTrainingDetail"));
+const AdminTrainingTrainees = lazy(() => import("./pages/AdminTrainingTrainees"));
+const AdminTrainingQR = lazy(() => import("./pages/AdminTrainingQR"));
+const TrainingRegisterPage = lazy(() => import("./pages/TrainingRegisterPage"));
+const RegisterPage = lazy(() => import("./pages/RegisterPage"));
+const NotFound = lazy(() => import("./pages/NotFound"));
 
 const queryClient = new QueryClient();
+
+const RouteFallback = () => (
+  <div className="min-h-svh bg-background flex items-center justify-center">
+    <Loader2 className="w-8 h-8 animate-spin text-primary" />
+  </div>
+);
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -31,6 +40,7 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <AuthProvider>
+          <Suspense fallback={<RouteFallback />}>
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/register/:accessCode" element={<RegisterPage />} />
@@ -56,6 +66,7 @@ const App = () => (
             </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>
+          </Suspense>
         </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>

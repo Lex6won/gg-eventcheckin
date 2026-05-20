@@ -38,7 +38,7 @@ const generateAccessCode = () => {
 };
 
 const AdminTrainings = () => {
-  const { user, isSuperAdmin } = useAuth();
+  const { user, isSuperAdmin, roleLoading } = useAuth();
   const navigate = useNavigate();
   const [trainings, setTrainings] = useState<Training[]>([]);
   const [loading, setLoading] = useState(true);
@@ -51,22 +51,32 @@ const AdminTrainings = () => {
     const { data, error } = await query;
     if (error) { console.error(error); return; }
 
-    const enriched = await Promise.all(
-      (data || []).map(async (t) => {
-        const [{ count: confirmed }, { count: waitlisted }] = await Promise.all([
-          supabase.from('trainees').select('*', { count: 'exact', head: true })
-            .eq('training_id', t.id).eq('status', 'confirmed'),
-          supabase.from('trainees').select('*', { count: 'exact', head: true })
-            .eq('training_id', t.id).eq('status', 'waitlisted'),
-        ]);
-        return { ...t, confirmed_count: confirmed ?? 0, waitlisted_count: waitlisted ?? 0 };
-      })
-    );
+    const ids = (data || []).map((t) => t.id);
+    const countMap = new Map<string, { confirmed: number; waitlisted: number }>();
+    if (ids.length > 0) {
+      const { data: rows } = await supabase
+        .from('trainees')
+        .select('training_id, status')
+        .in('training_id', ids)
+        .in('status', ['confirmed', 'waitlisted']);
+      (rows || []).forEach((r: { training_id: string; status: string }) => {
+        const cur = countMap.get(r.training_id) || { confirmed: 0, waitlisted: 0 };
+        if (r.status === 'confirmed') cur.confirmed += 1;
+        else if (r.status === 'waitlisted') cur.waitlisted += 1;
+        countMap.set(r.training_id, cur);
+      });
+    }
+    const enriched = (data || []).map((t) => {
+      const c = countMap.get(t.id);
+      return { ...t, confirmed_count: c?.confirmed ?? 0, waitlisted_count: c?.waitlisted ?? 0 };
+    });
     setTrainings(enriched);
     setLoading(false);
   };
 
-  useEffect(() => { if (user) fetchTrainings(); }, [user, isSuperAdmin]);
+  useEffect(() => {
+    if (user && !roleLoading) fetchTrainings();
+  }, [user, isSuperAdmin, roleLoading]);
 
   const handleDuplicate = async (t: Training) => {
     if (!user) return;
