@@ -599,6 +599,7 @@ const AdminTrainingDetail = () => {
                   <th className="px-4 py-3 text-left font-medium">직급</th>
                   {tab === 'attendees' && <th className="px-4 py-3 text-left font-medium">서명</th>}
                   <th className="px-4 py-3 text-left font-medium">{tab === 'applicants' ? '신청시각' : '등록시각'}</th>
+                  <th className="px-4 py-3 text-right font-medium w-20">관리</th>
                 </tr>
               </thead>
               <tbody>
@@ -608,11 +609,13 @@ const AdminTrainingDetail = () => {
                     <td className="px-4 py-3">
                       <span className={`text-xs px-2 py-0.5 rounded-md ${
                         t.status === 'confirmed' ? 'bg-primary/10 text-primary' :
+                        t.status === 'registered' ? 'bg-primary/10 text-primary' :
                         t.status === 'waitlisted' ? 'bg-warning/10 text-warning' :
                         t.status === 'walk_in' ? 'bg-warning/10 text-warning' :
                         'bg-muted text-muted-foreground'
                       }`}>
                         {t.status === 'confirmed' ? '확정' :
+                          t.status === 'registered' ? '신청' :
                           t.status === 'waitlisted' ? '대기' :
                           t.status === 'walk_in' ? '현장등록' :
                           t.status === 'cancelled' ? '취소' : t.status}
@@ -630,6 +633,36 @@ const AdminTrainingDetail = () => {
                       {tab === 'applicants'
                         ? new Date(t.registered_at).toLocaleString('ko-KR', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
                         : new Date(t.confirmed_at || t.registered_at).toLocaleString('ko-KR', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button size="sm" variant="ghost" className="h-7 text-destructive hover:text-destructive">
+                            <Trash2 className="w-3.5 h-3.5 mr-1" />삭제
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>이 신청자를 삭제할까요?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              {t.name}님의 신청 정보가 완전히 삭제됩니다. 이 작업은 되돌릴 수 없습니다.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>취소</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={async () => {
+                                const { error } = await supabase.from('trainees').delete().eq('id', t.id);
+                                if (error) toast.error('삭제에 실패했습니다.');
+                                else { toast.success(`${t.name}님을 삭제했습니다.`); fetchData(); }
+                              }}
+                              className="bg-destructive text-destructive-foreground"
+                            >
+                              삭제
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
                     </td>
                   </tr>
                 ))}
