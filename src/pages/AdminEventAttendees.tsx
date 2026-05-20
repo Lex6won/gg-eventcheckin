@@ -477,8 +477,8 @@ const AdminEventAttendees = () => {
                     <td className="px-4 py-3">
                       <AlertDialog>
                         <AlertDialogTrigger asChild>
-                          <Button size="icon" variant="ghost" className="h-8 w-8 text-muted-foreground hover:text-destructive">
-                            <Trash2 className="w-4 h-4" />
+                          <Button size="sm" variant="ghost" className="h-8 text-destructive hover:text-destructive">
+                            <Trash2 className="w-4 h-4 mr-1" />삭제
                           </Button>
                         </AlertDialogTrigger>
                         <AlertDialogContent>
