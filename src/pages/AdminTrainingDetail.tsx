@@ -102,6 +102,7 @@ const AdminTrainingDetail = () => {
 
   const counts = useMemo(() => ({
     confirmed: trainees.filter((t) => t.status === 'confirmed').length,
+    preRegistered: trainees.filter((t) => t.status === 'registered' || t.status === 'confirmed').length,
     waitlisted: trainees.filter((t) => t.status === 'waitlisted').length,
     cancelled: trainees.filter((t) => t.status === 'cancelled').length,
   }), [trainees]);
@@ -122,7 +123,7 @@ const AdminTrainingDetail = () => {
   );
   // 미참석 = 사전신청 확정인데 서명 없음
   const noShowCount = useMemo(
-    () => trainees.filter((t) => t.status === 'confirmed' && !t.signature_url).length,
+    () => trainees.filter((t) => (t.status === 'confirmed' || t.status === 'registered') && !t.signature_url).length,
     [trainees]
   );
 
@@ -338,7 +339,7 @@ const AdminTrainingDetail = () => {
   }
 
   const cap = training.capacity ?? 0;
-  const pct = training.capacity_enabled && cap > 0 ? Math.min(100, Math.round((counts.confirmed / cap) * 100)) : 0;
+  const pct = training.capacity_enabled && cap > 0 ? Math.min(100, Math.round((counts.preRegistered / cap) * 100)) : 0;
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-6 space-y-5">
@@ -489,7 +490,7 @@ const AdminTrainingDetail = () => {
       {training.capacity_enabled && (
         <div className="bg-card rounded-xl shadow-sm border border-border/50 p-5 space-y-3">
           <div className="flex items-baseline justify-between text-sm">
-            <span className="text-foreground font-medium">확정 {counts.confirmed} / 정원 {cap}명 ({pct}%)</span>
+            <span className="text-foreground font-medium">사전신청 {counts.preRegistered} / 정원 {cap}명 ({pct}%)</span>
             <span className="text-muted-foreground">대기 {counts.waitlisted}명</span>
           </div>
           <div className="h-3 bg-secondary rounded-full overflow-hidden">
@@ -716,7 +717,7 @@ const AdminTrainingDetail = () => {
                 <div className="space-y-2">
                   <h3 className="text-xs font-semibold text-foreground">정원 충원율</h3>
                   <div className="flex items-baseline justify-between text-xs text-muted-foreground">
-                    <span>{counts.confirmed} / {cap}명</span>
+                    <span>{counts.preRegistered} / {cap}명</span>
                     <span>{pct}%</span>
                   </div>
                   <div className="h-3 bg-secondary rounded-full overflow-hidden">

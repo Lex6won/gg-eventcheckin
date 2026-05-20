@@ -58,10 +58,10 @@ const AdminTrainings = () => {
         .from('trainees')
         .select('training_id, status')
         .in('training_id', ids)
-        .in('status', ['confirmed', 'waitlisted']);
+        .in('status', ['registered', 'confirmed', 'waitlisted']);
       (rows || []).forEach((r: { training_id: string; status: string }) => {
         const cur = countMap.get(r.training_id) || { confirmed: 0, waitlisted: 0 };
-        if (r.status === 'confirmed') cur.confirmed += 1;
+        if (r.status === 'confirmed' || r.status === 'registered') cur.confirmed += 1;
         else if (r.status === 'waitlisted') cur.waitlisted += 1;
         countMap.set(r.training_id, cur);
       });
