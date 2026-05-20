@@ -824,8 +824,8 @@ export async function exportAttendeesRosterToExcel(
 
   const sigColWidth = 30;
   const cols = showCar
-    ? [{ width: 6 }, { width: 10 }, { width: 10 }, { width: 20 }, { width: 16 }, { width: 10 }, { width: 12 }, { width: 14 }, { width: sigColWidth }, { width: 14 }]
-    : [{ width: 6 }, { width: 10 }, { width: 10 }, { width: 22 }, { width: 18 }, { width: 10 }, { width: 12 }, { width: sigColWidth }, { width: 14 }];
+    ? [{ width: 6 }, { width: 10 }, { width: 10 }, { width: 20 }, { width: 16 }, { width: 10 }, { width: 12 }, { width: 24 }, { width: 14 }, { width: sigColWidth }, { width: 14 }]
+    : [{ width: 6 }, { width: 10 }, { width: 10 }, { width: 22 }, { width: 18 }, { width: 10 }, { width: 12 }, { width: 26 }, { width: sigColWidth }, { width: 14 }];
   ws.columns = cols;
   const totalCols = cols.length;
 
@@ -838,8 +838,8 @@ export async function exportAttendeesRosterToExcel(
   ], totalCols);
 
   const headers = showCar
-    ? ['번호', '구분', '기관(사전/현장)', '기관명', '부서', '직급', '성명', '차량번호', '서명', '참석시각']
-    : ['번호', '구분', '구분(사전/현장)', '기관명', '부서', '직급', '성명', '서명', '참석시각'];
+    ? ['번호', '구분', '기관(사전/현장)', '기관명', '부서', '직급', '성명', '이메일', '차량번호', '서명', '참석시각']
+    : ['번호', '구분', '구분(사전/현장)', '기관명', '부서', '직급', '성명', '이메일', '서명', '참석시각'];
   const headerRow = ws.getRow(8);
   headers.forEach((h, i) => {
     const cell = headerRow.getCell(i + 1);
@@ -848,7 +848,7 @@ export async function exportAttendeesRosterToExcel(
   });
   headerRow.height = 24;
 
-  const sigColIndex = showCar ? 8 : 7;
+  const sigColIndex = showCar ? 9 : 8;
 
   for (let idx = 0; idx < rows.length; idx++) {
     const r = rows[idx];
@@ -859,8 +859,8 @@ export async function exportAttendeesRosterToExcel(
 
     const route = r.status === 'walk_in' ? '현장' : '사전';
     const vals = showCar
-      ? [idx + 1, r.org_type || '-', route, r.organization, r.department || '-', r.position || '-', r.name, r.car_number || '-', '', fmtDateTime(r.checked_in_at)]
-      : [idx + 1, r.org_type || '-', route, r.organization, r.department || '-', r.position || '-', r.name, '', fmtDateTime(r.checked_in_at)];
+      ? [idx + 1, r.org_type || '-', route, r.organization, r.department || '-', r.position || '-', r.name, r.email || '-', r.car_number || '-', '', fmtDateTime(r.checked_in_at)]
+      : [idx + 1, r.org_type || '-', route, r.organization, r.department || '-', r.position || '-', r.name, r.email || '-', '', fmtDateTime(r.checked_in_at)];
     vals.forEach((v, ci) => {
       const cell = row.getCell(ci + 1);
       cell.value = v; cell.alignment = { horizontal: 'center', vertical: 'middle' };
@@ -929,15 +929,15 @@ export async function exportAttendeesRosterToPDF(
   };
   drawHeader();
 
-  const sigColIdx = showCar ? 8 : 7;
+  const sigColIdx = showCar ? 9 : 8;
   const head = showCar
-    ? [['번호', '구분', '경로', '기관명', '부서', '직급', '성명', '차량', '서명', '참석시각']]
-    : [['번호', '구분', '경로', '기관명', '부서', '직급', '성명', '서명', '참석시각']];
+    ? [['번호', '구분', '경로', '기관명', '부서', '직급', '성명', '이메일', '차량', '서명', '참석시각']]
+    : [['번호', '구분', '경로', '기관명', '부서', '직급', '성명', '이메일', '서명', '참석시각']];
   const body = rows.map((r, i) => {
     const route = r.status === 'walk_in' ? '현장' : '사전';
     return showCar
-      ? [String(i + 1), r.org_type || '-', route, r.organization, r.department || '-', r.position || '-', r.name, r.car_number || '-', '', fmtDateTime(r.checked_in_at)]
-      : [String(i + 1), r.org_type || '-', route, r.organization, r.department || '-', r.position || '-', r.name, '', fmtDateTime(r.checked_in_at)];
+      ? [String(i + 1), r.org_type || '-', route, r.organization, r.department || '-', r.position || '-', r.name, r.email || '-', r.car_number || '-', '', fmtDateTime(r.checked_in_at)]
+      : [String(i + 1), r.org_type || '-', route, r.organization, r.department || '-', r.position || '-', r.name, r.email || '-', '', fmtDateTime(r.checked_in_at)];
   });
 
   autoTable(doc, {
