@@ -322,7 +322,7 @@ const AdminTrainingTrainees = () => {
                       <AlertDialog>
                         <AlertDialogTrigger asChild>
                           <Button size="sm" variant="ghost" className="h-7 text-destructive hover:text-destructive">
-                            <Trash2 className="w-3.5 h-3.5" />
+                            <Trash2 className="w-3.5 h-3.5 mr-1" />삭제
                           </Button>
                         </AlertDialogTrigger>
                         <AlertDialogContent>
