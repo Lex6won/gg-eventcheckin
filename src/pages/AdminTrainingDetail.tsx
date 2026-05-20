@@ -308,7 +308,7 @@ const AdminTrainingDetail = () => {
         department: t.department,
         position: t.position,
         name: t.name,
-        email: null,
+        email: (t as any).email ?? null,
         phone: null,
         car_number: t.car_number,
         signature_url: t.signature_url || null,

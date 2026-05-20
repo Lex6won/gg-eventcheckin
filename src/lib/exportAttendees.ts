@@ -68,6 +68,7 @@ export interface TraineeRow {
   department: string | null;
   position: string | null;
   name: string;
+  email?: string | null;
   car_number: string | null;
   signature_url: string;
   status: string;
