@@ -50,6 +50,7 @@ interface Training {
   allow_waitlist: boolean;
   show_car_number: boolean;
   poster_url: string | null;
+  pre_registration_close_at: string | null;
 }
 
 const STATUSES = ['예정', '진행중', '완료'] as const;
@@ -171,6 +172,23 @@ const AdminTrainingDetail = () => {
     const { error } = await supabase.from('trainings').update({ status }).eq('id', trainingId!);
     if (error) toast.error('상태 변경 실패');
     else { toast.success('상태가 변경되었습니다.'); fetchData(); }
+  };
+
+  const togglePreRegClose = async () => {
+    if (!training) return;
+    const isClosed =
+      !!training.pre_registration_close_at &&
+      new Date(training.pre_registration_close_at).getTime() <= Date.now();
+    const next = isClosed ? null : new Date().toISOString();
+    const { error } = await supabase
+      .from('trainings')
+      .update({ pre_registration_close_at: next })
+      .eq('id', trainingId!);
+    if (error) toast.error('변경 실패');
+    else {
+      toast.success(isClosed ? '사전신청을 재개했습니다.' : '사전신청을 마감했습니다.');
+      fetchData();
+    }
   };
 
   const copyAttendLink = () => {
