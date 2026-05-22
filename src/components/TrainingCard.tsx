@@ -14,6 +14,7 @@ interface TrainingCardProps {
     capacity: number | null;
     confirmed_count?: number;
     waitlisted_count?: number;
+    pre_registration_close_at?: string | null;
   };
   onClick: () => void;
   onDuplicate?: () => void;
@@ -23,6 +24,7 @@ const statusStyles: Record<string, string> = {
   '예정': 'bg-primary/10 text-primary',
   '진행중': 'bg-success/10 text-success',
   '완료': 'bg-muted text-muted-foreground',
+  '사전신청 마감': 'bg-warning/10 text-warning',
 };
 
 const TrainingCard = ({ training, onClick, onDuplicate }: TrainingCardProps) => {
@@ -34,6 +36,12 @@ const TrainingCard = ({ training, onClick, onDuplicate }: TrainingCardProps) => 
 
   const confirmed = training.confirmed_count ?? 0;
   const waitlisted = training.waitlisted_count ?? 0;
+  const status = training.status || '예정';
+  const preRegClosed =
+    status !== '완료' &&
+    !!training.pre_registration_close_at &&
+    new Date(training.pre_registration_close_at).getTime() <= Date.now();
+  const displayStatus = preRegClosed && status === '예정' ? '사전신청 마감' : status;
 
   return (
     <div className="bg-card rounded-xl shadow-card border border-border/40 hover:shadow-md transition-all animate-fade-in">
@@ -44,8 +52,8 @@ const TrainingCard = ({ training, onClick, onDuplicate }: TrainingCardProps) => 
       >
         <div className="flex items-start justify-between gap-2">
           <h3 className="font-bold text-foreground tracking-tight line-clamp-1">{training.title}</h3>
-          <span className={`text-xs font-medium px-2.5 py-0.5 rounded-full whitespace-nowrap ${statusStyles[training.status || '예정']}`}>
-            {training.status || '예정'}
+          <span className={`text-xs font-medium px-2.5 py-0.5 rounded-full whitespace-nowrap ${statusStyles[displayStatus] || statusStyles['예정']}`}>
+            {displayStatus}
           </span>
         </div>
 
