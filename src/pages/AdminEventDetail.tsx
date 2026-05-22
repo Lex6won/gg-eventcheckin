@@ -59,6 +59,7 @@ interface EventData {
   status: string | null;
   poster_url: string | null;
   show_car_number: boolean;
+  pre_registration_close_at: string | null;
 }
 
 const CHART_COLORS = [
