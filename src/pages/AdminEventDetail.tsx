@@ -59,6 +59,7 @@ interface EventData {
   status: string | null;
   poster_url: string | null;
   show_car_number: boolean;
+  pre_registration_close_at: string | null;
 }
 
 const CHART_COLORS = [
@@ -193,6 +194,24 @@ const AdminEventDetail = () => {
     setEditPosterPreview(null);
     setRemovePosterFlag(false);
     setShowEdit(true);
+  };
+
+  const togglePreRegClose = async () => {
+    if (!event) return;
+    const isClosed =
+      !!event.pre_registration_close_at &&
+      new Date(event.pre_registration_close_at).getTime() <= Date.now();
+    const next = isClosed ? null : new Date().toISOString();
+    const { error } = await supabase
+      .from('events')
+      .update({ pre_registration_close_at: next })
+      .eq('id', eventId!);
+    if (error) {
+      toast.error('변경 실패');
+    } else {
+      toast.success(isClosed ? '사전신청을 재개했습니다.' : '사전신청을 마감했습니다.');
+      fetchData();
+    }
   };
 
   const handleEditPosterSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -352,13 +371,36 @@ const AdminEventDetail = () => {
           <div className="space-y-3">
             <div className="flex items-start justify-between gap-2">
               <h1 className="text-2xl font-bold text-foreground tracking-tight">{event?.title}</h1>
-              <span className={`text-xs font-medium px-2.5 py-1 rounded-lg whitespace-nowrap ${
-                event?.status === '진행중' ? 'bg-success/10 text-success' :
-                event?.status === '완료' ? 'bg-muted text-muted-foreground' :
-                'bg-primary/10 text-primary'
-              }`}>
-                {event?.status || '예정'}
-              </span>
+              <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                {(() => {
+                  const closed =
+                    !!event?.pre_registration_close_at &&
+                    new Date(event.pre_registration_close_at).getTime() <= Date.now();
+                  return closed ? (
+                    <span className="text-xs font-medium px-2.5 py-1 rounded-lg bg-warning/10 text-warning whitespace-nowrap">
+                      사전신청 마감
+                    </span>
+                  ) : null;
+                })()}
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 px-2 text-xs"
+                  onClick={togglePreRegClose}
+                >
+                  {event?.pre_registration_close_at &&
+                  new Date(event.pre_registration_close_at).getTime() <= Date.now()
+                    ? '사전신청 재개'
+                    : '사전신청 마감'}
+                </Button>
+                <span className={`text-xs font-medium px-2.5 py-1 rounded-lg whitespace-nowrap ${
+                  event?.status === '진행중' ? 'bg-success/10 text-success' :
+                  event?.status === '완료' ? 'bg-muted text-muted-foreground' :
+                  'bg-primary/10 text-primary'
+                }`}>
+                  {event?.status || '예정'}
+                </span>
+              </div>
             </div>
             {event?.description && (
               <p className="text-sm text-muted-foreground">{event.description}</p>

@@ -50,6 +50,7 @@ interface Training {
   allow_waitlist: boolean;
   show_car_number: boolean;
   poster_url: string | null;
+  pre_registration_close_at: string | null;
 }
 
 const STATUSES = ['예정', '진행중', '완료'] as const;
@@ -171,6 +172,23 @@ const AdminTrainingDetail = () => {
     const { error } = await supabase.from('trainings').update({ status }).eq('id', trainingId!);
     if (error) toast.error('상태 변경 실패');
     else { toast.success('상태가 변경되었습니다.'); fetchData(); }
+  };
+
+  const togglePreRegClose = async () => {
+    if (!training) return;
+    const isClosed =
+      !!training.pre_registration_close_at &&
+      new Date(training.pre_registration_close_at).getTime() <= Date.now();
+    const next = isClosed ? null : new Date().toISOString();
+    const { error } = await supabase
+      .from('trainings')
+      .update({ pre_registration_close_at: next })
+      .eq('id', trainingId!);
+    if (error) toast.error('변경 실패');
+    else {
+      toast.success(isClosed ? '사전신청을 재개했습니다.' : '사전신청을 마감했습니다.');
+      fetchData();
+    }
   };
 
   const copyAttendLink = () => {
@@ -354,10 +372,33 @@ const AdminTrainingDetail = () => {
           <div className="space-y-3">
             <div className="flex items-start justify-between gap-2">
               <h1 className="text-2xl font-bold text-foreground tracking-tight">{training.title}</h1>
-              <select value={training.status || '예정'} onChange={(e) => updateStatus(e.target.value)}
-                className="text-xs font-medium border border-border rounded-lg px-2 py-1 bg-background">
-                {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
-              </select>
+              <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                {(() => {
+                  const closed =
+                    !!training.pre_registration_close_at &&
+                    new Date(training.pre_registration_close_at).getTime() <= Date.now();
+                  return closed ? (
+                    <span className="text-xs font-medium px-2 py-1 rounded-lg bg-warning/10 text-warning whitespace-nowrap">
+                      사전신청 마감
+                    </span>
+                  ) : null;
+                })()}
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 px-2 text-xs"
+                  onClick={togglePreRegClose}
+                >
+                  {training.pre_registration_close_at &&
+                  new Date(training.pre_registration_close_at).getTime() <= Date.now()
+                    ? '사전신청 재개'
+                    : '사전신청 마감'}
+                </Button>
+                <select value={training.status || '예정'} onChange={(e) => updateStatus(e.target.value)}
+                  className="text-xs font-medium border border-border rounded-lg px-2 py-1 bg-background">
+                  {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
             </div>
             {training.description && <p className="text-sm text-muted-foreground">{training.description}</p>}
             <div className="flex flex-wrap gap-3 text-sm text-muted-foreground">

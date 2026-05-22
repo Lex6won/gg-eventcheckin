@@ -14,6 +14,7 @@ interface EventCardProps {
     access_code: string;
     status: string | null;
     attendee_count?: number;
+    pre_registration_close_at?: string | null;
   };
   onClick: () => void;
   onDuplicate?: () => void;
@@ -23,6 +24,7 @@ const statusStyles: Record<string, string> = {
   '예정': 'bg-primary/10 text-primary',
   '진행중': 'bg-success/10 text-success',
   '완료': 'bg-muted text-muted-foreground',
+  '사전신청 마감': 'bg-warning/10 text-warning',
 };
 
 const EventCard = ({ event, onClick, onDuplicate }: EventCardProps) => {
@@ -31,6 +33,13 @@ const EventCard = ({ event, onClick, onDuplicate }: EventCardProps) => {
     navigator.clipboard.writeText(event.access_code);
     toast.success(`접속코드 ${event.access_code} 가 복사되었습니다.`);
   };
+
+  const status = event.status || '예정';
+  const preRegClosed =
+    status !== '완료' &&
+    !!event.pre_registration_close_at &&
+    new Date(event.pre_registration_close_at).getTime() <= Date.now();
+  const displayStatus = preRegClosed && status === '예정' ? '사전신청 마감' : status;
 
   return (
     <div className="bg-card rounded-xl shadow-card border border-border/40 hover:shadow-md transition-all animate-fade-in">
@@ -41,8 +50,8 @@ const EventCard = ({ event, onClick, onDuplicate }: EventCardProps) => {
       >
         <div className="flex items-start justify-between gap-2">
           <h3 className="font-bold text-foreground tracking-tight line-clamp-1">{event.title}</h3>
-          <span className={`text-xs font-medium px-2.5 py-0.5 rounded-full whitespace-nowrap ${statusStyles[event.status || '예정']}`}>
-            {event.status || '예정'}
+          <span className={`text-xs font-medium px-2.5 py-0.5 rounded-full whitespace-nowrap ${statusStyles[displayStatus] || statusStyles['예정']}`}>
+            {displayStatus}
           </span>
         </div>
 
