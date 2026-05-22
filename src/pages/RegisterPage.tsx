@@ -207,10 +207,7 @@ const RegisterPage = () => {
       <div className="text-center space-y-4 animate-fade-in max-w-md">
         <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-warning/10"><AlertCircle className="w-10 h-10 text-warning" /></div>
         <h2 className="text-xl font-bold text-foreground">사전 신청이 마감되었습니다</h2>
-        <p className="text-muted-foreground text-sm">사전 신청 기간이 종료되었습니다.<br />당일 현장 등록은 가능합니다.</p>
-        <Link to={kind === 'training' ? `/training/${code}` : `/attend/${code}`}>
-          <Button className="px-8 h-12 text-base rounded-xl">현장 등록 페이지로 이동</Button>
-        </Link>
+        <p className="text-muted-foreground text-sm">사전 신청 기간이 종료되었습니다.</p>
       </div>
     </div>
   );
