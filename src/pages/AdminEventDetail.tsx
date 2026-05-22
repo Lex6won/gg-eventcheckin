@@ -196,6 +196,24 @@ const AdminEventDetail = () => {
     setShowEdit(true);
   };
 
+  const togglePreRegClose = async () => {
+    if (!event) return;
+    const isClosed =
+      !!event.pre_registration_close_at &&
+      new Date(event.pre_registration_close_at).getTime() <= Date.now();
+    const next = isClosed ? null : new Date().toISOString();
+    const { error } = await supabase
+      .from('events')
+      .update({ pre_registration_close_at: next })
+      .eq('id', eventId!);
+    if (error) {
+      toast.error('변경 실패');
+    } else {
+      toast.success(isClosed ? '사전신청을 재개했습니다.' : '사전신청을 마감했습니다.');
+      fetchData();
+    }
+  };
+
   const handleEditPosterSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
