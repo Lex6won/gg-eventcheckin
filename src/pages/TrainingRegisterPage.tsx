@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
   CheckCircle2, Calendar, MapPin, Clock, Loader2, Building2,
-  RotateCcw, AlertCircle, XCircle, User, RefreshCw,
+  RotateCcw, AlertCircle, XCircle, User, RefreshCw, Mail, UserPlus,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -35,7 +35,7 @@ type Phase = 'open' | 'in_progress' | 'pre_reg_closed' | 'closed' | 'not_found';
 type Screen =
   | 'loading' | 'notfound' | 'closed_no_action'
   | 'pre_reg_link' | 'already_registered'
-  | 'sign' | 'walkin'
+  | 'choose_type' | 'email_lookup' | 'sign' | 'walkin'
   | 'success_checkin' | 'success_recheck' | 'already_checked_in' | 'already_rechecked';
 
 const TOKEN_KEY = (id: string) => `device_token:training:${id}`;
@@ -55,6 +55,7 @@ const TrainingRegisterPage = () => {
   const [participantInfo, setParticipantInfo] = useState<{ name: string; organization: string } | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [lookupEmail, setLookupEmail] = useState('');
   const [form, setForm] = useState({
     email: '', org_type: '', organization: '', department: '', position: '',
     name: '', car_number: '', privacy_agreed: false,
@@ -123,7 +124,7 @@ const TrainingRegisterPage = () => {
         }
       }
       if (p === 'open') return setScreen('pre_reg_link');
-      if (p === 'pre_reg_closed' || p === 'in_progress') return setScreen('walkin');
+      if (p === 'pre_reg_closed' || p === 'in_progress') return setScreen('choose_type');
       return setScreen('closed_no_action');
     };
     init();
@@ -147,7 +148,7 @@ const TrainingRegisterPage = () => {
     if (!training) return;
     if (!sigCanvas.current || sigCanvas.current.isEmpty()) { setErrors({ signature: '서명을 해주세요.' }); return; }
     const token = localStorage.getItem(TOKEN_KEY(training.id));
-    if (!token) { setScreen('walkin'); return; }
+    if (!token) { setScreen('choose_type'); return; }
     setSubmitting(true);
     try {
       const sig = sigCanvas.current.toDataURL('image/png');
@@ -156,7 +157,7 @@ const TrainingRegisterPage = () => {
       });
       if (error) throw error;
       const r = data as { status: string; trainee?: { name: string; organization: string } };
-      if (r.status === 'not_found') { localStorage.removeItem(TOKEN_KEY(training.id)); setScreen('walkin'); return; }
+      if (r.status === 'not_found') { localStorage.removeItem(TOKEN_KEY(training.id)); setScreen('choose_type'); return; }
       if (r.trainee) setParticipantInfo(r.trainee);
       if (r.status === 'already') setScreen('already_checked_in'); else setScreen('success_checkin');
     } catch (err) {
@@ -167,6 +168,43 @@ const TrainingRegisterPage = () => {
   const updateField = (k: string, v: string | boolean) => {
     setForm({ ...form, [k]: v });
     if (errors[k]) setErrors({ ...errors, [k]: '' });
+  };
+
+  const handleClaimByEmail = async () => {
+    if (!training) return;
+    const email = lookupEmail.trim();
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setErrors({ lookup_email: '올바른 이메일을 입력해주세요.' });
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const { data, error } = await supabase.rpc('claim_pre_registration_by_email', {
+        p_kind: 'training', p_id: training.id, p_email: email,
+      });
+      if (error) throw error;
+      const r = data as { status: string; device_token?: string; name?: string; organization?: string };
+      if (r.status === 'found' && r.device_token) {
+        localStorage.setItem(TOKEN_KEY(training.id), r.device_token);
+        setParticipantInfo({ name: r.name || '', organization: r.organization || '' });
+        setErrors({});
+        setScreen('sign');
+        return;
+      }
+      if (r.status === 'already') {
+        setParticipantInfo({ name: r.name || '', organization: r.organization || '' });
+        setScreen('already_checked_in');
+        return;
+      }
+      if (r.status === 'not_found') {
+        setErrors({ lookup_email: '사전 신청 내역을 찾을 수 없습니다. 이메일을 확인하거나 현장 등록을 진행해주세요.' });
+        return;
+      }
+      setErrors({ lookup_email: '확인할 수 없습니다.' });
+    } catch (err) {
+      console.error(err);
+      toast.error('확인 중 오류가 발생했습니다.');
+    } finally { setSubmitting(false); }
   };
 
   const validateWalkin = () => {
@@ -324,6 +362,73 @@ const TrainingRegisterPage = () => {
         <Button onClick={handleCheckinWithToken} disabled={submitting} className="w-full h-14 text-base rounded-xl font-semibold">
           {submitting ? <><Loader2 className="w-4 h-4 animate-spin mr-2" />처리 중...</> : '참석 확인 완료'}
         </Button>
+      </div>
+    </div>
+  );
+
+  if (screen === 'choose_type' && training) return (
+    <div className="min-h-svh bg-background flex items-center justify-center p-4" translate="no">
+      <div className="w-full max-w-md space-y-5 animate-fade-in">
+        <div className="text-center space-y-2">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary/10">
+            <Building2 className="w-8 h-8 text-primary" />
+          </div>
+          <h2 className="text-lg font-bold text-foreground">{training.title}</h2>
+          <p className="text-sm text-muted-foreground">참석 확인을 진행해주세요</p>
+        </div>
+        <button onClick={() => { setLookupEmail(''); setErrors({}); setScreen('email_lookup'); }}
+          className="w-full bg-card rounded-xl shadow-card p-5 text-left hover:shadow-md transition flex items-start gap-4 border border-border">
+          <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+            <Mail className="w-5 h-5 text-primary" />
+          </div>
+          <div className="flex-1">
+            <div className="font-semibold text-foreground">사전 신청을 했어요</div>
+            <div className="text-xs text-muted-foreground mt-0.5">이메일만 입력하면 서명만 하면 됩니다</div>
+          </div>
+        </button>
+        <button onClick={() => { setErrors({}); setScreen('walkin'); }}
+          className="w-full bg-card rounded-xl shadow-card p-5 text-left hover:shadow-md transition flex items-start gap-4 border border-border">
+          <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+            <UserPlus className="w-5 h-5 text-primary" />
+          </div>
+          <div className="flex-1">
+            <div className="font-semibold text-foreground">현장 등록</div>
+            <div className="text-xs text-muted-foreground mt-0.5">사전 신청을 하지 않았어요</div>
+          </div>
+        </button>
+      </div>
+    </div>
+  );
+
+  if (screen === 'email_lookup' && training) return (
+    <div className="min-h-svh bg-background flex items-center justify-center p-4" translate="no">
+      <div className="w-full max-w-md space-y-5 animate-fade-in">
+        <div className="text-center space-y-2">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary/10">
+            <Mail className="w-8 h-8 text-primary" />
+          </div>
+          <h2 className="text-lg font-bold text-foreground">사전 신청 확인</h2>
+          <p className="text-sm text-muted-foreground">사전 신청 시 사용한 이메일을 입력해주세요</p>
+        </div>
+        <div className="bg-card rounded-xl shadow-card p-5 space-y-4">
+          <div className="space-y-1.5">
+            <label className="text-sm font-semibold text-foreground">이메일</label>
+            <Input type="email" inputMode="email" autoComplete="email"
+              value={lookupEmail}
+              onChange={(e) => { setLookupEmail(e.target.value); if (errors.lookup_email) setErrors({}); }}
+              onKeyDown={(e) => { if (e.key === 'Enter') handleClaimByEmail(); }}
+              placeholder="example@email.com"
+              className={`h-12 bg-secondary/50 border-border/60 ${errors.lookup_email ? 'border-destructive' : ''}`} />
+            {errors.lookup_email && <p className="text-xs text-destructive">{errors.lookup_email}</p>}
+          </div>
+          <Button onClick={handleClaimByEmail} disabled={submitting} className="w-full h-12 rounded-xl font-semibold">
+            {submitting ? <><Loader2 className="w-4 h-4 animate-spin mr-2" />확인 중...</> : '다음'}
+          </Button>
+          <button type="button" onClick={() => setScreen('choose_type')}
+            className="w-full text-xs text-muted-foreground hover:text-foreground py-1">
+            ← 뒤로
+          </button>
+        </div>
       </div>
     </div>
   );
