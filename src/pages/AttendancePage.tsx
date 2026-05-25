@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
   CheckCircle2, Calendar, MapPin, Clock, Loader2, Building2,
-  RotateCcw, AlertCircle, XCircle, RefreshCw,
+  RotateCcw, AlertCircle, XCircle, RefreshCw, Mail, UserPlus,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -32,7 +32,7 @@ type Phase = 'open' | 'in_progress' | 'pre_reg_closed' | 'closed' | 'not_found';
 type Screen =
   | 'loading' | 'notfound' | 'closed_no_action'
   | 'pre_reg_link' | 'already_registered'
-  | 'sign' | 'walkin'
+  | 'choose_type' | 'email_lookup' | 'sign' | 'walkin'
   | 'success_checkin' | 'success_recheck' | 'already_checked_in' | 'already_rechecked';
 
 const TOKEN_KEY = (eventId: string) => `device_token:event:${eventId}`;
@@ -52,6 +52,7 @@ const AttendancePage = () => {
   const [participantInfo, setParticipantInfo] = useState<{ name: string; organization: string } | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [lookupEmail, setLookupEmail] = useState('');
   const [form, setForm] = useState({
     email: '', org_type: '', organization: '', department: '', position: '',
     name: '', phone: '', car_number: '', privacy_agreed: false,
@@ -134,7 +135,7 @@ const AttendancePage = () => {
 
       // No valid token
       if (p === 'open') return setScreen('pre_reg_link');
-      if (p === 'pre_reg_closed' || p === 'in_progress') return setScreen('walkin');
+      if (p === 'pre_reg_closed' || p === 'in_progress') return setScreen('choose_type');
       return setScreen('closed_no_action');
     };
     init();
@@ -161,7 +162,7 @@ const AttendancePage = () => {
       setErrors({ signature: '서명을 해주세요.' }); return;
     }
     const token = localStorage.getItem(TOKEN_KEY(event.id));
-    if (!token) { setScreen('walkin'); return; }
+    if (!token) { setScreen('choose_type'); return; }
     setSubmitting(true);
     try {
       const sig = sigCanvas.current.toDataURL('image/png');
@@ -172,7 +173,7 @@ const AttendancePage = () => {
       const r = data as { status: string; attendee?: { name: string; organization: string } };
       if (r.status === 'not_found') {
         localStorage.removeItem(TOKEN_KEY(event.id));
-        setScreen('walkin'); return;
+        setScreen('choose_type'); return;
       }
       if (r.attendee) setParticipantInfo(r.attendee);
       if (r.status === 'already') setScreen('already_checked_in');
@@ -186,6 +187,43 @@ const AttendancePage = () => {
   const updateField = (k: string, v: string | boolean) => {
     setForm({ ...form, [k]: v });
     if (errors[k]) setErrors({ ...errors, [k]: '' });
+  };
+
+  const handleClaimByEmail = async () => {
+    if (!event) return;
+    const email = lookupEmail.trim();
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setErrors({ lookup_email: '올바른 이메일을 입력해주세요.' });
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const { data, error } = await supabase.rpc('claim_pre_registration_by_email', {
+        p_kind: 'event', p_id: event.id, p_email: email,
+      });
+      if (error) throw error;
+      const r = data as { status: string; device_token?: string; name?: string; organization?: string };
+      if (r.status === 'found' && r.device_token) {
+        localStorage.setItem(TOKEN_KEY(event.id), r.device_token);
+        setParticipantInfo({ name: r.name || '', organization: r.organization || '' });
+        setErrors({});
+        setScreen('sign');
+        return;
+      }
+      if (r.status === 'already') {
+        setParticipantInfo({ name: r.name || '', organization: r.organization || '' });
+        setScreen('already_checked_in');
+        return;
+      }
+      if (r.status === 'not_found') {
+        setErrors({ lookup_email: '사전 신청 내역을 찾을 수 없습니다. 이메일을 확인하거나 현장 등록을 진행해주세요.' });
+        return;
+      }
+      setErrors({ lookup_email: '확인할 수 없습니다.' });
+    } catch (err) {
+      console.error(err);
+      toast.error('확인 중 오류가 발생했습니다.');
+    } finally { setSubmitting(false); }
   };
 
   const validateWalkin = () => {
