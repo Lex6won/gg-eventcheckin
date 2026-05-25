@@ -416,6 +416,10 @@ export type Database = {
       _gen_device_token: { Args: never; Returns: string }
       approve_admin: { Args: { p_user_id: string }; Returns: undefined }
       auto_transition_event_statuses: { Args: never; Returns: undefined }
+      claim_pre_registration_by_email: {
+        Args: { p_email: string; p_id: string; p_kind: string }
+        Returns: Json
+      }
       count_trainees_registered: {
         Args: { p_training_id: string }
         Returns: number
