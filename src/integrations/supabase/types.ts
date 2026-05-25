@@ -458,7 +458,9 @@ export type Database = {
         Args: { p_training_id: string }
         Returns: string
       }
+      get_event_by_access_code: { Args: { p_code: string }; Returns: Json }
       get_event_public_status: { Args: { p_code: string }; Returns: Json }
+      get_training_by_access_code: { Args: { p_code: string }; Returns: Json }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
