@@ -278,6 +278,15 @@ const TrainingRegisterPage = () => {
 
   if (screen === 'loading') return <div className="min-h-svh bg-background flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
 
+  if (screen === 'load_error') return (
+    <div className="min-h-svh bg-background flex items-center justify-center p-4"><div className="text-center space-y-4 animate-fade-in max-w-md">
+      <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-warning/10"><AlertCircle className="w-10 h-10 text-warning" /></div>
+      <h2 className="text-xl font-bold text-foreground">페이지를 불러오지 못했습니다</h2>
+      <p className="text-muted-foreground text-sm">네트워크 상태를 확인한 뒤 새로고침해주세요.</p>
+      <Button onClick={() => window.location.reload()} className="px-8 h-12 text-base rounded-xl">다시 시도</Button>
+    </div></div>
+  );
+
   if (screen === 'notfound') return (
     <div className="min-h-svh bg-background flex items-center justify-center p-4"><div className="text-center space-y-4 animate-fade-in">
       <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-destructive/10"><XCircle className="w-10 h-10 text-destructive" /></div>
