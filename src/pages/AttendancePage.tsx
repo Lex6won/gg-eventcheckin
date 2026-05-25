@@ -426,6 +426,75 @@ const AttendancePage = () => {
     </div>
   );
 
+  // ----- Choose: pre-registered (email lookup) vs walk-in
+  if (screen === 'choose_type' && event) return (
+    <div className="min-h-svh bg-background flex items-center justify-center p-4" translate="no">
+      <div className="w-full max-w-md space-y-5 animate-fade-in">
+        <div className="text-center space-y-2">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary/10">
+            <Building2 className="w-8 h-8 text-primary" />
+          </div>
+          <h2 className="text-lg font-bold text-foreground">{event.title}</h2>
+          <p className="text-sm text-muted-foreground">참석 확인을 진행해주세요</p>
+        </div>
+        <button onClick={() => { setLookupEmail(''); setErrors({}); setScreen('email_lookup'); }}
+          className="w-full bg-card rounded-xl shadow-card p-5 text-left hover:shadow-md transition flex items-start gap-4 border border-border">
+          <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+            <Mail className="w-5 h-5 text-primary" />
+          </div>
+          <div className="flex-1">
+            <div className="font-semibold text-foreground">사전 신청을 했어요</div>
+            <div className="text-xs text-muted-foreground mt-0.5">이메일만 입력하면 서명만 하면 됩니다</div>
+          </div>
+        </button>
+        <button onClick={() => { setErrors({}); setScreen('walkin'); }}
+          className="w-full bg-card rounded-xl shadow-card p-5 text-left hover:shadow-md transition flex items-start gap-4 border border-border">
+          <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+            <UserPlus className="w-5 h-5 text-primary" />
+          </div>
+          <div className="flex-1">
+            <div className="font-semibold text-foreground">현장 등록</div>
+            <div className="text-xs text-muted-foreground mt-0.5">사전 신청을 하지 않았어요</div>
+          </div>
+        </button>
+      </div>
+    </div>
+  );
+
+  // ----- Email lookup for pre-registered users on a different device
+  if (screen === 'email_lookup' && event) return (
+    <div className="min-h-svh bg-background flex items-center justify-center p-4" translate="no">
+      <div className="w-full max-w-md space-y-5 animate-fade-in">
+        <div className="text-center space-y-2">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary/10">
+            <Mail className="w-8 h-8 text-primary" />
+          </div>
+          <h2 className="text-lg font-bold text-foreground">사전 신청 확인</h2>
+          <p className="text-sm text-muted-foreground">사전 신청 시 사용한 이메일을 입력해주세요</p>
+        </div>
+        <div className="bg-card rounded-xl shadow-card p-5 space-y-4">
+          <div className="space-y-1.5">
+            <label className="text-sm font-semibold text-foreground">이메일</label>
+            <Input type="email" inputMode="email" autoComplete="email"
+              value={lookupEmail}
+              onChange={(e) => { setLookupEmail(e.target.value); if (errors.lookup_email) setErrors({}); }}
+              onKeyDown={(e) => { if (e.key === 'Enter') handleClaimByEmail(); }}
+              placeholder="example@email.com"
+              className={`h-12 bg-secondary/50 border-border/60 ${errors.lookup_email ? 'border-destructive' : ''}`} />
+            {errors.lookup_email && <p className="text-xs text-destructive">{errors.lookup_email}</p>}
+          </div>
+          <Button onClick={handleClaimByEmail} disabled={submitting} className="w-full h-12 rounded-xl font-semibold">
+            {submitting ? <><Loader2 className="w-4 h-4 animate-spin mr-2" />확인 중...</> : '다음'}
+          </Button>
+          <button type="button" onClick={() => setScreen('choose_type')}
+            className="w-full text-xs text-muted-foreground hover:text-foreground py-1">
+            ← 뒤로
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
   // ----- Walk-in form
   if (screen === 'walkin' && event) return (
     <div className="min-h-svh bg-muted/30 pb-8" translate="no">
