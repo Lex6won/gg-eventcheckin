@@ -75,23 +75,25 @@ const RegisterPage = () => {
     else if (phase === 'pre_reg_closed') setPreRegClosed(true);
 
     // try training first, then event
-    const { data: t } = await supabase.from('trainings').select('*').eq('access_code', code).maybeSingle();
+    const { data: t } = await supabase.rpc('get_training_by_access_code', { p_code: code });
     if (t) {
       setKind('training');
-      setData(t as CommonData);
-      if (t.status === '완료') { setExpired(true); setLoading(false); return; }
-      const { data: cnt } = await supabase.rpc('count_trainees_registered', { p_training_id: t.id });
+      const tr = t as unknown as CommonData & { id: string; status: string | null; capacity_enabled?: boolean; capacity?: number | null; allow_waitlist?: boolean };
+      setData(tr);
+      if (tr.status === '완료') { setExpired(true); setLoading(false); return; }
+      const { data: cnt } = await supabase.rpc('count_trainees_registered', { p_training_id: tr.id });
       const count = (cnt as number) ?? 0;
       setRegisteredCount(count);
-      if (t.capacity_enabled && t.capacity != null && count >= t.capacity && !t.allow_waitlist) setClosed(true);
+      if (tr.capacity_enabled && tr.capacity != null && count >= tr.capacity && !tr.allow_waitlist) setClosed(true);
       setLoading(false);
       return;
     }
-    const { data: e } = await supabase.from('events').select('*').eq('access_code', code).maybeSingle();
+    const { data: e } = await supabase.rpc('get_event_by_access_code', { p_code: code });
     if (e) {
       setKind('event');
-      setData(e as CommonData);
-      if (e.status === '완료') { setExpired(true); setLoading(false); return; }
+      const ev = e as unknown as CommonData & { status: string | null };
+      setData(ev);
+      if (ev.status === '완료') { setExpired(true); setLoading(false); return; }
       setLoading(false);
       return;
     }
