@@ -34,11 +34,27 @@ const ORG_TYPES = ['경기도', '시군', '공공기관', '기타'] as const;
 type Phase = 'open' | 'in_progress' | 'pre_reg_closed' | 'closed' | 'not_found';
 type Screen =
   | 'loading' | 'notfound' | 'closed_no_action'
+  | 'load_error'
   | 'pre_reg_link' | 'already_registered'
   | 'choose_type' | 'email_lookup' | 'sign' | 'walkin'
   | 'success_checkin' | 'success_recheck' | 'already_checked_in' | 'already_rechecked';
 
 const TOKEN_KEY = (id: string) => `device_token:training:${id}`;
+
+const getStoredToken = (id: string) => {
+  try { return localStorage.getItem(TOKEN_KEY(id)); }
+  catch { return null; }
+};
+
+const setStoredToken = (id: string, token: string) => {
+  try { localStorage.setItem(TOKEN_KEY(id), token); }
+  catch { /* Some browsers block localStorage; the flow should still continue. */ }
+};
+
+const removeStoredToken = (id: string) => {
+  try { localStorage.removeItem(TOKEN_KEY(id)); }
+  catch { /* Ignore storage failures. */ }
+};
 
 const TrainingRegisterPage = () => {
   const { accessCode } = useParams<{ accessCode: string }>();
@@ -82,51 +98,58 @@ const TrainingRegisterPage = () => {
 
   useEffect(() => {
     const init = async () => {
-      if (!code) { setScreen('notfound'); return; }
-      const { data: phaseData } = await supabase.rpc('get_event_public_status', { p_code: code });
-      const p = (phaseData as { phase?: string })?.phase as Phase | undefined;
-      if (!p || p === 'not_found') { setScreen('notfound'); return; }
-      setPhase(p);
+      try {
+        if (!code) { setScreen('notfound'); return; }
+        const { data: phaseData, error: phaseError } = await supabase.rpc('get_event_public_status', { p_code: code });
+        if (phaseError) throw phaseError;
+        const p = (phaseData as { phase?: string })?.phase as Phase | undefined;
+        if (!p || p === 'not_found') { setScreen('notfound'); return; }
+        setPhase(p);
 
-      const { data: tRaw } = await supabase.rpc('get_training_by_access_code', { p_code: code });
-      if (!tRaw) { setScreen('notfound'); return; }
-      const t = tRaw as unknown as TrainingData;
-      setTraining(t);
+        const { data: tRaw, error: trainingError } = await supabase.rpc('get_training_by_access_code', { p_code: code });
+        if (trainingError) throw trainingError;
+        if (!tRaw) { setScreen('notfound'); return; }
+        const t = tRaw as unknown as TrainingData;
+        setTraining(t);
 
-      const token = localStorage.getItem(TOKEN_KEY(t.id));
-      if (token) {
-        const { data: lookup } = await supabase.rpc('lookup_by_device_token', {
-          p_kind: 'training', p_id: t.id, p_device_token: token,
-        });
-        const r = lookup as { status?: string; name?: string; organization?: string; record_status?: string; rechecked_at?: string | null };
-        if (r?.status === 'found') {
-          setParticipantInfo({ name: r.name || '', organization: r.organization || '' });
-          if (r.record_status === 'registered') {
-            if (p === 'in_progress') return setScreen('sign');
-            if (p === 'open') return setScreen('already_registered');
-            return setScreen('closed_no_action');
-          }
-          if (r.record_status === 'waitlisted') return setScreen('already_registered');
-          if (r.rechecked_at) return setScreen('already_rechecked');
-          if (t.recheck_enabled && (p === 'in_progress' || p === 'closed')) {
-            try {
-              const { data: rd, error } = await supabase.rpc('device_recheck_trainee', {
-                p_training_id: t.id, p_device_token: token,
-              });
-              if (error) throw error;
-              const rr = rd as { status: string; trainee?: { name: string; organization: string } };
-              if (rr.status === 'rechecked') { if (rr.trainee) setParticipantInfo(rr.trainee); return setScreen('success_recheck'); }
-              if (rr.status === 'already') return setScreen('already_rechecked');
-            } catch {
-              return setScreen('already_checked_in');
+        const token = getStoredToken(t.id);
+        if (token) {
+          const { data: lookup } = await supabase.rpc('lookup_by_device_token', {
+            p_kind: 'training', p_id: t.id, p_device_token: token,
+          });
+          const r = lookup as { status?: string; name?: string; organization?: string; record_status?: string; rechecked_at?: string | null };
+          if (r?.status === 'found') {
+            setParticipantInfo({ name: r.name || '', organization: r.organization || '' });
+            if (r.record_status === 'registered') {
+              if (p === 'in_progress') return setScreen('sign');
+              if (p === 'open') return setScreen('already_registered');
+              return setScreen('closed_no_action');
             }
+            if (r.record_status === 'waitlisted') return setScreen('already_registered');
+            if (r.rechecked_at) return setScreen('already_rechecked');
+            if (t.recheck_enabled && (p === 'in_progress' || p === 'closed')) {
+              try {
+                const { data: rd, error } = await supabase.rpc('device_recheck_trainee', {
+                  p_training_id: t.id, p_device_token: token,
+                });
+                if (error) throw error;
+                const rr = rd as { status: string; trainee?: { name: string; organization: string } };
+                if (rr.status === 'rechecked') { if (rr.trainee) setParticipantInfo(rr.trainee); return setScreen('success_recheck'); }
+                if (rr.status === 'already') return setScreen('already_rechecked');
+              } catch {
+                return setScreen('already_checked_in');
+              }
+            }
+            return setScreen('already_checked_in');
           }
-          return setScreen('already_checked_in');
         }
+        if (p === 'open') return setScreen('pre_reg_link');
+        if (p === 'pre_reg_closed' || p === 'in_progress') return setScreen('choose_type');
+        return setScreen('closed_no_action');
+      } catch (err) {
+        console.error('Training page failed to initialize', err);
+        setScreen('load_error');
       }
-      if (p === 'open') return setScreen('pre_reg_link');
-      if (p === 'pre_reg_closed' || p === 'in_progress') return setScreen('choose_type');
-      return setScreen('closed_no_action');
     };
     init();
   }, [code]);
@@ -148,7 +171,7 @@ const TrainingRegisterPage = () => {
   const handleCheckinWithToken = async () => {
     if (!training) return;
     if (!sigCanvas.current || sigCanvas.current.isEmpty()) { setErrors({ signature: '서명을 해주세요.' }); return; }
-    const token = localStorage.getItem(TOKEN_KEY(training.id));
+    const token = getStoredToken(training.id);
     if (!token) { setScreen('choose_type'); return; }
     setSubmitting(true);
     try {
@@ -158,7 +181,7 @@ const TrainingRegisterPage = () => {
       });
       if (error) throw error;
       const r = data as { status: string; trainee?: { name: string; organization: string } };
-      if (r.status === 'not_found') { localStorage.removeItem(TOKEN_KEY(training.id)); setScreen('choose_type'); return; }
+      if (r.status === 'not_found') { removeStoredToken(training.id); setScreen('choose_type'); return; }
       if (r.trainee) setParticipantInfo(r.trainee);
       if (r.status === 'already') setScreen('already_checked_in'); else setScreen('success_checkin');
     } catch (err) {
@@ -186,7 +209,7 @@ const TrainingRegisterPage = () => {
       if (error) throw error;
       const r = data as { status: string; device_token?: string; name?: string; organization?: string };
       if (r.status === 'found' && r.device_token) {
-        localStorage.setItem(TOKEN_KEY(training.id), r.device_token);
+        setStoredToken(training.id, r.device_token);
         setParticipantInfo({ name: r.name || '', organization: r.organization || '' });
         setErrors({});
         setScreen('sign');
@@ -244,7 +267,7 @@ const TrainingRegisterPage = () => {
       });
       if (error) throw error;
       const r = data as { status: string; device_token?: string; trainee?: { name: string; organization: string } };
-      if (r.device_token) localStorage.setItem(TOKEN_KEY(training.id), r.device_token);
+      if (r.device_token) setStoredToken(training.id, r.device_token);
       const info = r.trainee || { name: form.name.trim(), organization: form.organization.trim() };
       setParticipantInfo(info);
       if (r.status === 'already') setScreen('already_checked_in'); else setScreen('success_checkin');
