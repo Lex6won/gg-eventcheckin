@@ -80,7 +80,7 @@ const CreateEventDialog = ({ open, onOpenChange, onCreated }: CreateEventDialogP
 
       if (posterFile) {
         const ext = posterFile.name.split('.').pop();
-        const fileName = `${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
+        const fileName = `${user.id}/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
         const { error: uploadError } = await supabase.storage
           .from('event-posters')
           .upload(fileName, posterFile, { contentType: posterFile.type });

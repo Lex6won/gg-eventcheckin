@@ -247,7 +247,7 @@ const AdminEventDetail = () => {
 
       if (editPosterFile) {
         const ext = editPosterFile.name.split('.').pop();
-        const fileName = `${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
+        const fileName = `${user!.id}/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
         const { error: uploadError } = await supabase.storage
           .from('event-posters')
           .upload(fileName, editPosterFile, { contentType: editPosterFile.type });

@@ -92,7 +92,7 @@ const CreateTrainingDialog = ({ open, onOpenChange, onCreated }: Props) => {
       let poster_url: string | null = null;
       if (posterFile) {
         const ext = posterFile.name.split('.').pop();
-        const fileName = `training_${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
+        const fileName = `${user.id}/training_${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
         const { error: uploadError } = await supabase.storage
           .from('event-posters')
           .upload(fileName, posterFile, { contentType: posterFile.type });
