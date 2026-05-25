@@ -289,7 +289,7 @@ const AdminTrainingDetail = () => {
       let poster_url: string | null = training?.poster_url || null;
       if (editPosterFile) {
         const ext = editPosterFile.name.split('.').pop();
-        const fileName = `training_${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
+        const fileName = `${user!.id}/training_${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
         const { error: uploadError } = await supabase.storage
           .from('event-posters').upload(fileName, editPosterFile, { contentType: editPosterFile.type });
         if (uploadError) throw uploadError;

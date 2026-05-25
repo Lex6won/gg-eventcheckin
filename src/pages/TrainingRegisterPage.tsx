@@ -88,9 +88,10 @@ const TrainingRegisterPage = () => {
       if (!p || p === 'not_found') { setScreen('notfound'); return; }
       setPhase(p);
 
-      const { data: t } = await supabase.from('trainings').select('*').eq('access_code', code).maybeSingle();
-      if (!t) { setScreen('notfound'); return; }
-      setTraining(t as TrainingData);
+      const { data: tRaw } = await supabase.rpc('get_training_by_access_code', { p_code: code });
+      if (!tRaw) { setScreen('notfound'); return; }
+      const t = tRaw as unknown as TrainingData;
+      setTraining(t);
 
       const token = localStorage.getItem(TOKEN_KEY(t.id));
       if (token) {

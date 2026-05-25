@@ -86,9 +86,10 @@ const AttendancePage = () => {
       if (!p || p === 'not_found') { setScreen('notfound'); return; }
       setPhase(p);
 
-      const { data: ev } = await supabase.from('events').select('*').eq('access_code', code).maybeSingle();
-      if (!ev) { setScreen('notfound'); return; }
-      setEvent(ev as EventData);
+      const { data: evRaw } = await supabase.rpc('get_event_by_access_code', { p_code: code });
+      if (!evRaw) { setScreen('notfound'); return; }
+      const ev = evRaw as unknown as EventData;
+      setEvent(ev);
 
       const token = localStorage.getItem(TOKEN_KEY(ev.id));
 
