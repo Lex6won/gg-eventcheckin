@@ -281,12 +281,12 @@ const AdminTrainingTrainees = () => {
                 <tr>
                   <th className="text-left px-3 py-2.5 w-10">#</th>
                   {mainTab === 'attendees' && <th className="text-left px-3 py-2.5">경로</th>}
-                  <th className="text-left px-3 py-2.5">{mainTab === 'applicants' ? '신청일시' : '참석시각'}</th>
+                  <th className="text-left px-3 py-2.5">{mainTab === 'attendees' ? '참석시각' : '신청일시'}</th>
                   <th className="text-left px-3 py-2.5">소속구분</th>
                   <th className="text-left px-3 py-2.5">기관/부서</th>
                   <th className="text-left px-3 py-2.5">직급</th>
                   <th className="text-left px-3 py-2.5">성함</th>
-                  {mainTab === 'applicants' && <th className="text-left px-3 py-2.5">이메일</th>}
+                  {mainTab !== 'attendees' && <th className="text-left px-3 py-2.5">이메일</th>}
                   {training?.show_car_number && <th className="text-left px-3 py-2.5">차량</th>}
                   {mainTab === 'attendees' && <th className="text-left px-3 py-2.5">서명</th>}
                   {mainTab === 'attendees' && training?.recheck_enabled && <th className="text-left px-3 py-2.5">재확인</th>}
@@ -305,15 +305,15 @@ const AdminTrainingTrainees = () => {
                       </td>
                     )}
                     <td className="px-3 py-2.5 text-muted-foreground whitespace-nowrap text-xs">
-                      {(mainTab === 'applicants' ? t.registered_at : (t.confirmed_at || t.registered_at))
-                        ? new Date((mainTab === 'applicants' ? t.registered_at : (t.confirmed_at || t.registered_at))!).toLocaleString('ko-KR')
+                      {(mainTab === 'attendees' ? (t.confirmed_at || t.registered_at) : t.registered_at)
+                        ? new Date((mainTab === 'attendees' ? (t.confirmed_at || t.registered_at) : t.registered_at)!).toLocaleString('ko-KR')
                         : '-'}
                     </td>
                     <td className="px-3 py-2.5">{t.org_type || '-'}</td>
                     <td className="px-3 py-2.5">{t.organization}{t.department ? ` / ${t.department}` : ''}</td>
                     <td className="px-3 py-2.5">{t.position || '-'}</td>
                     <td className="px-3 py-2.5 font-medium">{t.name}</td>
-                    {mainTab === 'applicants' && <td className="px-3 py-2.5 text-xs text-muted-foreground">{t.email || '-'}</td>}
+                    {mainTab !== 'attendees' && <td className="px-3 py-2.5 text-xs text-muted-foreground">{t.email || '-'}</td>}
                     {training?.show_car_number && <td className="px-3 py-2.5">{t.car_number || '-'}</td>}
                     {mainTab === 'attendees' && (
                       <td className="px-3 py-2.5">
@@ -338,6 +338,9 @@ const AdminTrainingTrainees = () => {
                       )}
                       {mainTab === 'applicants' && subTab === 'cancelled' && (
                         <Button size="sm" variant="ghost" className="h-7" onClick={() => restore(t.id)}>복구</Button>
+                      )}
+                      {mainTab === 'noshow' && (
+                        <Button size="sm" variant="ghost" className="h-7 text-destructive hover:text-destructive" onClick={() => cancel(t.id)}>취소</Button>
                       )}
                       <AlertDialog>
                         <AlertDialogTrigger asChild>
