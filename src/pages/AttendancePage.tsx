@@ -62,7 +62,7 @@ const AttendancePage = () => {
     if (!sigCanvas.current || !sigContainerRef.current) return;
     const w = sigContainerRef.current.offsetWidth;
     if (w <= 0) return;
-    if (!force && w === lastCanvasWidthRef.current) return;
+    if (!force && Math.abs(w - lastCanvasWidthRef.current) < 4) return;
     const canvas = sigCanvas.current.getCanvas();
     const ratio = window.devicePixelRatio || 1;
     const had = !sigCanvas.current.isEmpty();
@@ -147,14 +147,12 @@ const AttendancePage = () => {
     if (screen !== 'sign' && screen !== 'walkin') return;
     lastCanvasWidthRef.current = 0;
     const t = setTimeout(() => resizeCanvas(true), 100);
-    const onResize = () => resizeCanvas(false);
-    window.addEventListener('resize', onResize);
     let ro: ResizeObserver | null = null;
     if (typeof ResizeObserver !== 'undefined' && sigContainerRef.current) {
       ro = new ResizeObserver(() => resizeCanvas(false));
       ro.observe(sigContainerRef.current);
     }
-    return () => { clearTimeout(t); window.removeEventListener('resize', onResize); ro?.disconnect(); };
+    return () => { clearTimeout(t); ro?.disconnect(); };
   }, [screen, resizeCanvas]);
 
   const handleCheckinWithToken = async () => {
