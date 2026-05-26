@@ -45,6 +45,7 @@ const AttendancePage = () => {
   const sigCanvas = useRef<SignatureCanvas>(null);
   const sigContainerRef = useRef<HTMLDivElement>(null);
   const lastCanvasWidthRef = useRef(0);
+  const lastCanvasHeightRef = useRef(0);
 
   const [event, setEvent] = useState<EventData | null>(null);
   const [phase, setPhase] = useState<Phase>('open');
@@ -61,20 +62,22 @@ const AttendancePage = () => {
   const resizeCanvas = useCallback((force = false) => {
     if (!sigCanvas.current || !sigContainerRef.current) return;
     const w = sigContainerRef.current.offsetWidth;
+    const h = Math.max(120, sigContainerRef.current.offsetHeight);
     if (w <= 0) return;
-    if (!force && Math.abs(w - lastCanvasWidthRef.current) < 4) return;
+    if (!force && Math.abs(w - lastCanvasWidthRef.current) < 4 && Math.abs(h - lastCanvasHeightRef.current) < 4) return;
     const canvas = sigCanvas.current.getCanvas();
     const ratio = window.devicePixelRatio || 1;
     const had = !sigCanvas.current.isEmpty();
     const prev = had ? sigCanvas.current.toDataURL('image/png') : null;
     canvas.width = w * ratio;
-    canvas.height = 200 * ratio;
+    canvas.height = h * ratio;
     canvas.style.width = `${w}px`;
-    canvas.style.height = '200px';
+    canvas.style.height = `${h}px`;
     canvas.getContext('2d')?.scale(ratio, ratio);
     sigCanvas.current.clear();
-    if (prev) sigCanvas.current.fromDataURL(prev, { width: w, height: 200 });
+    if (prev) sigCanvas.current.fromDataURL(prev, { width: w, height: h });
     lastCanvasWidthRef.current = w;
+    lastCanvasHeightRef.current = h;
   }, []);
 
   // Resolve initial screen based on phase + token
@@ -146,6 +149,7 @@ const AttendancePage = () => {
   useEffect(() => {
     if (screen !== 'sign' && screen !== 'walkin') return;
     lastCanvasWidthRef.current = 0;
+    lastCanvasHeightRef.current = 0;
     const t = setTimeout(() => resizeCanvas(true), 100);
     let ro: ResizeObserver | null = null;
     if (typeof ResizeObserver !== 'undefined' && sigContainerRef.current) {
