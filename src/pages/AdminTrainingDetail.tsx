@@ -12,7 +12,7 @@ import {
   ArrowLeft, Loader2, Calendar, Clock, MapPin, User, Hash, Users,
   Copy, QrCode, Trash2, Pencil, Download, FileImage, BarChart3,
   ImagePlus, X, CheckCircle2, FileSpreadsheet, FileText, Maximize2, ScanLine,
-  ClipboardList, UserPlus,
+  ClipboardList, UserPlus, XCircle,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { QRCodeSVG } from 'qrcode.react';
@@ -84,7 +84,7 @@ const AdminTrainingDetail = () => {
   const [saving, setSaving] = useState(false);
   const qrAttendRef = useRef<HTMLDivElement>(null);
   const qrRegisterRef = useRef<HTMLDivElement>(null);
-  const [tab, setTab] = useState<'applicants' | 'attendees'>('applicants');
+  const [tab, setTab] = useState<'applicants' | 'attendees' | 'noshow'>('applicants');
   const [exporting, setExporting] = useState<'xlsx' | 'pdf' | null>(null);
 
   const fetchData = useCallback(async () => {
@@ -123,12 +123,13 @@ const AdminTrainingDetail = () => {
     [trainees]
   );
   // 미참석 = 사전신청 확정인데 서명 없음
-  const noShowCount = useMemo(
-    () => trainees.filter((t) => (t.status === 'confirmed' || t.status === 'registered') && !t.signature_url).length,
+  const noShowList = useMemo(
+    () => trainees.filter((t) => (t.status === 'confirmed' || t.status === 'registered') && !t.signature_url),
     [trainees]
   );
+  const noShowCount = noShowList.length;
 
-  const tabRows = tab === 'applicants' ? applicants : attendedList;
+  const tabRows = tab === 'applicants' ? applicants : tab === 'attendees' ? attendedList : noShowList;
 
   // Stats
   const orgStats = useMemo(() => {
@@ -336,14 +337,14 @@ const AdminTrainingDetail = () => {
         checked_in_at: t.confirmed_at,
       }));
       const opts = { showCarNumber: !!training.show_car_number, kind: '교육' as const };
-      if (tab === 'applicants') {
-        if (fmt === 'xlsx') await exportApplicantsToExcel(training, rows, opts);
-        else await exportApplicantsToPDF(training, rows, opts);
-        toast.success('신청자 명부가 다운로드되었습니다.');
-      } else {
+      if (tab === 'attendees') {
         if (fmt === 'xlsx') await exportAttendeesRosterToExcel(training, rows, opts);
         else await exportAttendeesRosterToPDF(training, rows, opts);
         toast.success('참석자 명부가 다운로드되었습니다.');
+      } else {
+        if (fmt === 'xlsx') await exportApplicantsToExcel(training, rows, opts);
+        else await exportApplicantsToPDF(training, rows, opts);
+        toast.success(`${tab === 'noshow' ? '미참석자' : '신청자'} 명부가 다운로드되었습니다.`);
       }
     } catch {
       toast.error('다운로드에 실패했습니다.');
