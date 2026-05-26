@@ -64,6 +64,7 @@ const TrainingRegisterPage = () => {
   const sigCanvas = useRef<SignatureCanvas>(null);
   const sigContainerRef = useRef<HTMLDivElement>(null);
   const lastCanvasWidthRef = useRef(0);
+  const lastCanvasHeightRef = useRef(0);
 
   const [training, setTraining] = useState<TrainingData | null>(null);
   const [phase, setPhase] = useState<Phase>('open');
@@ -80,20 +81,22 @@ const TrainingRegisterPage = () => {
   const resizeCanvas = useCallback((force = false) => {
     if (!sigCanvas.current || !sigContainerRef.current) return;
     const w = sigContainerRef.current.offsetWidth;
+    const h = Math.max(120, sigContainerRef.current.offsetHeight);
     if (w <= 0) return;
-    if (!force && Math.abs(w - lastCanvasWidthRef.current) < 4) return;
+    if (!force && Math.abs(w - lastCanvasWidthRef.current) < 4 && Math.abs(h - lastCanvasHeightRef.current) < 4) return;
     const canvas = sigCanvas.current.getCanvas();
     const ratio = window.devicePixelRatio || 1;
     const had = !sigCanvas.current.isEmpty();
     const prev = had ? sigCanvas.current.toDataURL('image/png') : null;
     canvas.width = w * ratio;
-    canvas.height = 200 * ratio;
+    canvas.height = h * ratio;
     canvas.style.width = `${w}px`;
-    canvas.style.height = '200px';
+    canvas.style.height = `${h}px`;
     canvas.getContext('2d')?.scale(ratio, ratio);
     sigCanvas.current.clear();
-    if (prev) sigCanvas.current.fromDataURL(prev, { width: w, height: 200 });
+    if (prev) sigCanvas.current.fromDataURL(prev, { width: w, height: h });
     lastCanvasWidthRef.current = w;
+    lastCanvasHeightRef.current = h;
   }, []);
 
   useEffect(() => {
@@ -157,6 +160,7 @@ const TrainingRegisterPage = () => {
   useEffect(() => {
     if (screen !== 'sign' && screen !== 'walkin') return;
     lastCanvasWidthRef.current = 0;
+    lastCanvasHeightRef.current = 0;
     const t = setTimeout(() => resizeCanvas(true), 100);
     let ro: ResizeObserver | null = null;
     if (typeof ResizeObserver !== 'undefined' && sigContainerRef.current) {
@@ -353,44 +357,44 @@ const TrainingRegisterPage = () => {
   );
 
   if (screen === 'sign' && training && participantInfo) return (
-    <div className="min-h-svh bg-muted/30 pb-8" translate="no">
-      <div className="bg-primary text-primary-foreground px-4 py-3 flex items-center gap-3">
-        <div className="w-10 h-10 rounded-lg bg-primary-foreground/20 flex items-center justify-center shrink-0"><Building2 className="w-6 h-6" /></div>
+    <div className="h-svh bg-muted/30 flex flex-col overflow-hidden" translate="no">
+      <div className="bg-primary text-primary-foreground px-4 py-2 flex items-center gap-2 shrink-0">
+        <Building2 className="w-5 h-5" />
         <span className="text-sm font-medium opacity-90">참석 확인</span>
       </div>
-      <div className="px-4 pt-5 max-w-lg mx-auto space-y-5">
-        <div className="bg-card rounded-xl shadow-card p-5 animate-fade-in">
-          <h1 className="text-lg font-bold text-foreground leading-snug">{training.title}</h1>
-          <div className="mt-3 space-y-1.5 text-sm text-muted-foreground">
-            <div className="flex items-center gap-2"><Calendar className="w-4 h-4 text-primary shrink-0" /><span>{training.event_date}</span></div>
-            <div className="flex items-center gap-2"><Clock className="w-4 h-4 text-primary shrink-0" /><span>{training.start_time?.slice(0,5)} ~ {training.end_time?.slice(0,5)}</span></div>
-            <div className="flex items-center gap-2"><MapPin className="w-4 h-4 text-primary shrink-0" /><span>{training.location}</span></div>
-            {training.instructor && <div className="flex items-center gap-2"><User className="w-4 h-4 text-primary shrink-0" /><span>강사: {training.instructor}</span></div>}
+      <div className="flex-1 min-h-0 px-3 py-2 max-w-lg w-full mx-auto flex flex-col gap-2">
+        <div className="bg-card rounded-lg shadow-card px-3 py-2 shrink-0">
+          <h1 className="text-sm font-bold text-foreground leading-snug line-clamp-2">{training.title}</h1>
+          <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
+            <span className="inline-flex items-center gap-1"><Calendar className="w-3 h-3 text-primary" />{training.event_date}</span>
+            <span className="inline-flex items-center gap-1"><Clock className="w-3 h-3 text-primary" />{training.start_time?.slice(0,5)}~{training.end_time?.slice(0,5)}</span>
+            <span className="inline-flex items-center gap-1"><MapPin className="w-3 h-3 text-primary" />{training.location}</span>
           </div>
         </div>
-        <div className="bg-success/10 border border-success/30 rounded-xl p-4 animate-fade-in">
-          <p className="text-sm text-foreground"><span className="font-semibold">{participantInfo.name}</span>님 ({participantInfo.organization})<br />
-            <span className="text-muted-foreground">사전 신청이 확인되었습니다. 서명만 해주세요.</span></p>
+        <div className="bg-success/10 border border-success/30 rounded-lg px-3 py-2 shrink-0">
+          <p className="text-xs text-foreground">
+            <span className="font-semibold">{participantInfo.name}</span>님 ({participantInfo.organization}) — <span className="text-muted-foreground">아래 서명 후 완료 버튼을 눌러주세요.</span>
+          </p>
         </div>
-        <div className="bg-card rounded-xl shadow-card p-5 space-y-3 animate-fade-in">
-          <div className="flex items-center justify-between">
-            <label className="text-sm font-semibold text-foreground">서명 <span className="text-destructive">*</span></label>
+        <div className="flex-1 min-h-0 bg-card rounded-lg shadow-card p-2 flex flex-col gap-1.5">
+          <div className="flex items-center justify-between shrink-0">
+            <label className="text-xs font-semibold text-foreground">서명 <span className="text-destructive">*</span></label>
             <button type="button" onClick={() => { sigCanvas.current?.clear(); setErrors({...errors, signature: ''}); }}
               className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
               <RotateCcw className="w-3 h-3" />다시 쓰기
             </button>
           </div>
           <div ref={sigContainerRef}
-            className={`border-2 border-dashed rounded-xl bg-white overflow-hidden relative ${errors.signature ? 'border-destructive' : 'border-border'}`}>
+            className={`flex-1 min-h-0 border-2 border-dashed rounded-lg bg-white overflow-hidden relative ${errors.signature ? 'border-destructive' : 'border-border'}`}>
             <SignatureCanvas ref={sigCanvas}
-              canvasProps={{ className: 'w-full cursor-crosshair touch-none', style: { width: '100%', height: '200px' } }}
+              canvasProps={{ className: 'w-full h-full cursor-crosshair touch-none' }}
               backgroundColor="rgba(255,255,255,0)"
               onEnd={() => { if (errors.signature) setErrors({...errors, signature: ''}); }} />
             <span className="absolute inset-0 flex items-center justify-center text-sm text-muted-foreground/40 pointer-events-none select-none">서명해주세요</span>
           </div>
-          {errors.signature && <p className="text-xs text-destructive">{errors.signature}</p>}
+          {errors.signature && <p className="text-xs text-destructive shrink-0">{errors.signature}</p>}
         </div>
-        <Button onClick={handleCheckinWithToken} disabled={submitting} className="w-full h-14 text-base rounded-xl font-semibold">
+        <Button onClick={handleCheckinWithToken} disabled={submitting} className="w-full h-12 text-base rounded-xl font-semibold shrink-0">
           {submitting ? <><Loader2 className="w-4 h-4 animate-spin mr-2" />처리 중...</> : '참석 확인 완료'}
         </Button>
       </div>
