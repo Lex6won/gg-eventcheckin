@@ -597,6 +597,16 @@ const AdminTrainingDetail = () => {
             >
               <CheckCircle2 className="w-4 h-4" />참석자 명부 ({attendedList.length})
             </button>
+            <button
+              role="tab"
+              aria-selected={tab === 'noshow'}
+              onClick={() => setTab('noshow')}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                tab === 'noshow' ? 'bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
+              }`}
+            >
+              <XCircle className="w-4 h-4" />사전신청 미참석자 ({noShowCount})
+            </button>
           </div>
           <div className="flex flex-wrap gap-2">
             <Button
@@ -623,12 +633,14 @@ const AdminTrainingDetail = () => {
         <div className="px-4 pt-3 text-xs text-muted-foreground">
           {tab === 'applicants'
             ? '사전 신청한 모든 인원입니다 (서명 미포함).'
-            : '서명 완료한 참석자입니다 (사전신청 + 현장등록).'}
+            : tab === 'attendees'
+              ? '서명 완료한 참석자입니다 (사전신청 + 현장등록).'
+              : '사전 신청은 했지만 현장 서명(체크인)하지 않은 인원입니다.'}
         </div>
 
         {tabRows.length === 0 ? (
           <div className="p-12 text-center text-muted-foreground text-sm">
-            {tab === 'applicants' ? '아직 사전 신청한 인원이 없습니다.' : '아직 참석 확인된 인원이 없습니다.'}
+            {tab === 'applicants' ? '아직 사전 신청한 인원이 없습니다.' : tab === 'attendees' ? '아직 참석 확인된 인원이 없습니다.' : '미참석자가 없습니다.'}
           </div>
         ) : (
           <div className="overflow-x-auto mt-2">
