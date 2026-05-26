@@ -219,10 +219,7 @@ const RegisterPage = () => {
       <div className="text-center space-y-4 animate-fade-in max-w-md">
         <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-primary/10"><ScanLine className="w-10 h-10 text-primary" /></div>
         <h2 className="text-xl font-bold text-foreground">행사가 진행 중입니다</h2>
-        <p className="text-muted-foreground text-sm">현재 진행 중인 행사입니다.<br />현장 체크인 페이지를 이용해주세요.</p>
-        <Link to={kind === 'training' ? `/training/${code}` : `/attend/${code}`}>
-          <Button className="px-8 h-12 text-base rounded-xl">현장 체크인하러 가기</Button>
-        </Link>
+        <p className="text-muted-foreground text-sm">현재 진행 중인 행사입니다.<br />현장에서 QR을 직접 스캔해주세요.</p>
       </div>
     </div>
   );
@@ -289,11 +286,6 @@ const RegisterPage = () => {
       </div>
 
       <div className="px-4 pt-5 max-w-lg mx-auto">
-        <Link to={kind === 'training' ? `/training/${code}` : `/attend/${code}`}
-          className="mb-4 flex items-center gap-2 bg-secondary/70 border border-border rounded-lg p-3 text-sm text-foreground hover:bg-secondary transition-colors">
-          <ScanLine className="w-4 h-4 text-primary" />
-          <span>현장에 오셨나요? <strong>현장 체크인 바로가기</strong></span>
-        </Link>
 
         <div className="bg-card rounded-xl shadow-card overflow-hidden mb-5 animate-fade-in">
           {data?.poster_url && <img src={data.poster_url} alt="포스터" className="w-full max-h-56 object-contain bg-secondary/30" />}
