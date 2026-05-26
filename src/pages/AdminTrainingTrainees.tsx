@@ -171,12 +171,12 @@ const AdminTrainingTrainees = () => {
         checked_in_at: t.confirmed_at,
       }));
       const opts = { showCarNumber: !!training.show_car_number, kind: '교육' as const };
-      if (mainTab === 'applicants') {
-        if (fmt === 'xlsx') await exportApplicantsToExcel(training, rows, opts);
-        else await exportApplicantsToPDF(training, rows, opts);
-      } else {
+      if (mainTab === 'attendees') {
         if (fmt === 'xlsx') await exportAttendeesRosterToExcel(training, rows, opts);
         else await exportAttendeesRosterToPDF(training, rows, opts);
+      } else {
+        if (fmt === 'xlsx') await exportApplicantsToExcel(training, rows, opts);
+        else await exportApplicantsToPDF(training, rows, opts);
       }
       toast.success('파일이 다운로드되었습니다.');
     } catch { toast.error('다운로드에 실패했습니다.'); }
