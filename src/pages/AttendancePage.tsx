@@ -153,7 +153,6 @@ const AttendancePage = () => {
       ro.observe(sigContainerRef.current);
     }
     return () => { clearTimeout(t); ro?.disconnect(); };
-    return () => { clearTimeout(t); window.removeEventListener('resize', onResize); ro?.disconnect(); };
   }, [screen, resizeCanvas]);
 
   const handleCheckinWithToken = async () => {
