@@ -435,7 +435,8 @@ const AttendancePage = () => {
             <SignatureCanvas ref={sigCanvas}
               canvasProps={{ className: 'w-full h-full cursor-crosshair touch-none' }}
               backgroundColor="rgba(255,255,255,0)"
-              onEnd={() => { if (errors.signature) setErrors({...errors, signature: ''}); }} />
+              onBegin={() => { isDrawingRef.current = true; }}
+              onEnd={() => { isDrawingRef.current = false; if (errors.signature) setErrors({...errors, signature: ''}); }} />
             <span className="absolute inset-0 flex items-center justify-center text-sm text-muted-foreground/40 pointer-events-none select-none">서명해주세요</span>
           </div>
           {errors.signature && <p className="text-xs text-destructive shrink-0">{errors.signature}</p>}
