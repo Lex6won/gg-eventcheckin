@@ -46,6 +46,7 @@ const AttendancePage = () => {
   const sigContainerRef = useRef<HTMLDivElement>(null);
   const lastCanvasWidthRef = useRef(0);
   const lastCanvasHeightRef = useRef(0);
+  const isDrawingRef = useRef(false);
 
   const [event, setEvent] = useState<EventData | null>(null);
   const [phase, setPhase] = useState<Phase>('open');
@@ -61,6 +62,7 @@ const AttendancePage = () => {
 
   const resizeCanvas = useCallback((force = false) => {
     if (!sigCanvas.current || !sigContainerRef.current) return;
+    if (!force && isDrawingRef.current) return;
     const w = sigContainerRef.current.offsetWidth;
     const h = Math.max(120, sigContainerRef.current.offsetHeight);
     if (w <= 0) return;
@@ -156,7 +158,24 @@ const AttendancePage = () => {
       ro = new ResizeObserver(() => resizeCanvas(false));
       ro.observe(sigContainerRef.current);
     }
-    return () => { clearTimeout(t); ro?.disconnect(); };
+    // Lock body scroll on sign screen to prevent iOS overscroll/address-bar jitter
+    let cleanupLock: (() => void) | null = null;
+    if (screen === 'sign') {
+      const body = document.body;
+      const html = document.documentElement;
+      const prevBodyOverflow = body.style.overflow;
+      const prevBodyOverscroll = body.style.overscrollBehavior;
+      const prevHtmlOverflow = html.style.overflow;
+      body.style.overflow = 'hidden';
+      body.style.overscrollBehavior = 'none';
+      html.style.overflow = 'hidden';
+      cleanupLock = () => {
+        body.style.overflow = prevBodyOverflow;
+        body.style.overscrollBehavior = prevBodyOverscroll;
+        html.style.overflow = prevHtmlOverflow;
+      };
+    }
+    return () => { clearTimeout(t); ro?.disconnect(); cleanupLock?.(); };
   }, [screen, resizeCanvas]);
 
   const handleCheckinWithToken = async () => {
@@ -416,7 +435,8 @@ const AttendancePage = () => {
             <SignatureCanvas ref={sigCanvas}
               canvasProps={{ className: 'w-full h-full cursor-crosshair touch-none' }}
               backgroundColor="rgba(255,255,255,0)"
-              onEnd={() => { if (errors.signature) setErrors({...errors, signature: ''}); }} />
+              onBegin={() => { isDrawingRef.current = true; }}
+              onEnd={() => { isDrawingRef.current = false; if (errors.signature) setErrors({...errors, signature: ''}); }} />
             <span className="absolute inset-0 flex items-center justify-center text-sm text-muted-foreground/40 pointer-events-none select-none">서명해주세요</span>
           </div>
           {errors.signature && <p className="text-xs text-destructive shrink-0">{errors.signature}</p>}
