@@ -170,7 +170,7 @@ const TrainingRegisterPage = () => {
       ro.observe(sigContainerRef.current);
     }
     let cleanupLock: (() => void) | null = null;
-    if (screen === 'sign') {
+    if (screen === 'sign' || screen === 'walkin') {
       const body = document.body;
       const html = document.documentElement;
       const prevBodyOverflow = body.style.overflow;
@@ -488,12 +488,12 @@ const TrainingRegisterPage = () => {
   );
 
   if (screen === 'walkin' && training) return (
-    <div className="min-h-svh bg-muted/30 pb-8" translate="no">
-      <div className="bg-primary text-primary-foreground px-4 py-3 flex items-center gap-3">
+    <div className="h-svh bg-muted/30 flex flex-col overflow-hidden" translate="no">
+      <div className="bg-primary text-primary-foreground px-4 py-3 flex items-center gap-3 shrink-0">
         <div className="w-10 h-10 rounded-lg bg-primary-foreground/20 flex items-center justify-center shrink-0"><Building2 className="w-6 h-6" /></div>
         <span className="text-sm font-medium opacity-90">현장 참석 확인</span>
       </div>
-      <div className="px-4 pt-5 max-w-lg mx-auto">
+      <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 pt-5 pb-8 max-w-lg w-full mx-auto [WebkitOverflowScrolling:touch]">
         <div className="bg-card rounded-xl shadow-card overflow-hidden mb-5 animate-fade-in">
           {training.poster_url && <img src={training.poster_url} alt="포스터" className="w-full max-h-56 object-contain bg-secondary/30" />}
           <div className="p-5">
@@ -580,11 +580,12 @@ const TrainingRegisterPage = () => {
               </button>
             </div>
             <div ref={sigContainerRef}
-              className={`border-2 border-dashed rounded-xl bg-white overflow-hidden relative ${errors.signature ? 'border-destructive' : 'border-border'}`}>
+              className={`h-[200px] border-2 border-dashed rounded-xl bg-white overflow-hidden relative ${errors.signature ? 'border-destructive' : 'border-border'}`}>
               <SignatureCanvas ref={sigCanvas}
-                canvasProps={{ className: 'w-full cursor-crosshair touch-none', style: { width: '100%', height: '200px' } }}
+                canvasProps={{ className: 'w-full h-full cursor-crosshair touch-none' }}
                 backgroundColor="rgba(255,255,255,0)"
-                onEnd={() => { if (errors.signature) setErrors({...errors, signature: ''}); }} />
+                onBegin={() => { isDrawingRef.current = true; }}
+                onEnd={() => { isDrawingRef.current = false; if (errors.signature) setErrors({...errors, signature: ''}); }} />
               <span className="absolute inset-0 flex items-center justify-center text-sm text-muted-foreground/40 pointer-events-none select-none">서명해주세요</span>
             </div>
             {errors.signature && <p className="text-xs text-destructive">{errors.signature}</p>}
